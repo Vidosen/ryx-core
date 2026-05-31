@@ -25,6 +25,10 @@ Observable<Unit> InteractiveModeInput.InteractPressed { get; }
 `InteractiveModeInput` reads `${context}/Interact` and `${context}/Position` actions from
 the attached `PlayerInput`.
 
+`InteractionTargetSelector` selects one or more `IInteractionSelectionTarget` components
+under the center-camera ray. Use `InteractionSelectionProfile` to configure distance,
+raycast masks and line-of-sight checks.
+
 ## Typical Usage
 ```csharp
 var service = new FPSInteractionService();

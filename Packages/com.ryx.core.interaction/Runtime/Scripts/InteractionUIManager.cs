@@ -265,6 +265,15 @@ namespace Ryx.Core.Interaction
 			return string.IsNullOrEmpty(config.DisplayName) ? config.LocalizationKey : config.DisplayName;
 		}
 
+		public void SetIdleButtonText(string text)
+		{
+			_idleButtonText = text ?? string.Empty;
+			if (_idleButton)
+			{
+				_idleButton.SetVisuals(icon: null, labelText: _idleButtonText, color: null);
+			}
+		}
+
 		#region Context Management
 
 		/// <summary>
