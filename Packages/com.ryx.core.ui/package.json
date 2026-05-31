@@ -1,0 +1,15 @@
+{
+  "name": "com.ryx.core.ui",
+  "displayName": "Ryx Core UI",
+  "version": "0.1.0",
+  "unity": "6000.0",
+  "description": "Shared UI utilities: UIButton, UISnapper, UISnappingButton, UIService.",
+  "dependencies": {
+    "com.cysharp.r3": "https://github.com/Cysharp/R3.git?path=src/R3.Unity/Assets/R3.Unity",
+    "com.cysharp.unitask": "2.5.10",
+    "com.unity.ugui": "2.0.0"
+  },
+  "author": {
+    "name": "Ryx Games"
+  }
+}

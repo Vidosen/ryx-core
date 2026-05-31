@@ -1,0 +1,18 @@
+{
+  "name": "com.ryx.core.hands",
+  "displayName": "Ryx Core Hands",
+  "version": "0.1.0",
+  "unity": "6000.0",
+  "description": "Shared dual-hand grab/move service, item abstractions, and spline path following.",
+  "author": {
+    "name": "Ryx Games"
+  },
+  "dependencies": {
+    "com.cysharp.unitask": "2.5.10",
+    "com.cysharp.r3": "https://github.com/Cysharp/R3.git?path=src/R3.Unity/Assets/R3.Unity",
+    "com.unity.splines": "1.0.0",
+    "com.unity.mathematics": "1.0.0",
+    "com.unity.animation.rigging": "1.0.0",
+    "com.unity.formats.fbx": "5.1.5"
+  }
+}

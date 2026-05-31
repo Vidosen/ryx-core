@@ -1,0 +1,20 @@
+{
+    "name": "Ryx.Core.Hands",
+    "rootNamespace": "Ryx.Core.Hands",
+    "references": [
+        "UniTask",
+        "Unity.Splines",
+        "Unity.Mathematics",
+        "R3",
+        "R3.Unity"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

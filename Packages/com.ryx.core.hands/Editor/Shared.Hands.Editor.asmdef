@@ -1,0 +1,28 @@
+{
+    "name": "Ryx.Core.Hands.Editor",
+    "rootNamespace": "Ryx.Core.Hands.Editor",
+    "references": [
+        "Ryx.Core.Hands",
+        "UniTask",
+        "Unity.Splines",
+        "Unity.Mathematics",
+        "Unity.Formats.Fbx.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.formats.fbx",
+            "expression": "5.0.0",
+            "define": "UNITY_FORMATS_FBX"
+        }
+    ],
+    "noEngineReferences": false
+}

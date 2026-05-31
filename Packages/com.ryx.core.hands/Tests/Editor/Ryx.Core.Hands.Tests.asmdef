@@ -1,0 +1,12 @@
+{
+  "name": "Ryx.Core.Hands.Tests",
+  "references": [
+    "Ryx.Core.Hands"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}

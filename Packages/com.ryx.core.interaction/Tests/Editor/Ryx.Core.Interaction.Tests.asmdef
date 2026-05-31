@@ -1,0 +1,12 @@
+{
+  "name": "Ryx.Core.Interaction.Tests",
+  "references": [
+    "Ryx.Core.Interaction"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}

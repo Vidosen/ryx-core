@@ -1,0 +1,26 @@
+{
+    "name": "Ryx.Core.Interaction",
+    "rootNamespace": "Ryx.Core.Interaction",
+    "references": [
+        "Unity.InputSystem",
+        "Ryx.Core.UI",
+        "Unity.TextMeshPro",
+        "UniTask",
+        "R3"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.ryx.core.ui",
+            "expression": "0.1.0",
+            "define": "RYX_CORE_UI"
+        }
+    ],
+    "noEngineReferences": false
+}

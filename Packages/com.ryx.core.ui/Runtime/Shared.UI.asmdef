@@ -1,0 +1,19 @@
+{
+    "name": "Ryx.Core.UI",
+    "rootNamespace": "Ryx.Core.UI",
+    "references": [
+        "UnityEngine.UI",
+        "Unity.TextMeshPro",
+        "UniTask",
+        "R3"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
