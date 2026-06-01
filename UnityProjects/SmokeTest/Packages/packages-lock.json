@@ -30,6 +30,12 @@
       "dependencies": {},
       "hash": "acc1c7bc9ea34c33b830e40316fca52553878d29"
     },
+    "com.ryx.core": {
+      "version": "file:com.ryx.core",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.ryx.core.fps": {
       "version": "file:com.ryx.core.fps",
       "depth": 0,
@@ -58,7 +64,7 @@
       "dependencies": {
         "com.cysharp.r3": "https://github.com/Cysharp/R3.git?path=src/R3.Unity/Assets/R3.Unity",
         "com.cysharp.unitask": "2.5.10",
-        "com.ryx.core.ui": "0.1.0",
+        "com.ryx.core.ui": "0.1.1",
         "com.unity.inputsystem": "1.14.0",
         "com.unity.localization": "1.5.9",
         "com.unity.ugui": "2.0.0"
