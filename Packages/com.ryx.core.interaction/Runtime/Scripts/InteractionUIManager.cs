@@ -186,7 +186,7 @@ namespace Ryx.Core.Interaction
 			if (!_activeByOwner.TryGetValue(owner, out var button) || !button) return;
 			if (!_database || !_database.TryGet(interactionId, out var config)) return;
 
-			var displayText = textOverride ?? (string.IsNullOrEmpty(config.DisplayName) ? config.LocalizationKey : config.DisplayName);
+			var displayText = textOverride ?? config.DisplayName;
 			var displayIcon = iconOverride ?? config.Icon;
 			button.SetVisuals(displayIcon, displayText, color: config.Color);
 		}
@@ -262,7 +262,16 @@ namespace Ryx.Core.Interaction
 			EnsureInitialized();
 			if (string.IsNullOrEmpty(interactionId)) return null;
 			if (!_database || !_database.TryGet(interactionId, out var config)) return null;
-			return string.IsNullOrEmpty(config.DisplayName) ? config.LocalizationKey : config.DisplayName;
+			return config.DisplayName;
+		}
+
+		public bool TryGetConfig(InteractionId interactionId, out InteractionConfig config)
+		{
+			EnsureInitialized();
+			config = null;
+			return !string.IsNullOrEmpty(interactionId)
+				&& _database
+				&& _database.TryGet(interactionId, out config);
 		}
 
 		public void SetIdleButtonText(string text)
@@ -621,7 +630,7 @@ namespace Ryx.Core.Interaction
 		{
 			button.Button.interactable = true;
 
-			var displayText = textOverride ?? (string.IsNullOrEmpty(config.DisplayName) ? config.LocalizationKey : config.DisplayName);
+			var displayText = textOverride ?? config.DisplayName;
 			var displayIcon = iconOverride ?? config.Icon;
 			button.SetVisuals(displayIcon, displayText, config.Color);
 

@@ -3,6 +3,7 @@
     "rootNamespace": "Ryx.Core.Interaction",
     "references": [
         "Unity.InputSystem",
+        "Unity.Localization",
         "Ryx.Core.UI",
         "Unity.TextMeshPro",
         "UniTask",

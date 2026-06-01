@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Localization;
 
 namespace Ryx.Core.Interaction
 {
@@ -6,7 +7,7 @@ namespace Ryx.Core.Interaction
     public class InteractionConfig : ScriptableObject
     {
         [SerializeField] private InteractionType interactionType = InteractionType.None;
-        [SerializeField] private string localizationKey;
+        [SerializeField] private LocalizedString label;
         [SerializeField] private string displayName;
         [SerializeField] private Sprite icon;
         [SerializeField] private Color color;
@@ -19,7 +20,7 @@ namespace Ryx.Core.Interaction
 
         public string Id => name;
         public InteractionType Type => interactionType;
-        public string LocalizationKey => localizationKey;
+        public LocalizedString Label => label;
         public string DisplayName => displayName;
         public Sprite Icon => icon;
         public Color Color => color;
@@ -34,7 +35,6 @@ namespace Ryx.Core.Interaction
         public bool IsGlobalButton => _isGlobalButton;
     }
 }
-
 
 
 
