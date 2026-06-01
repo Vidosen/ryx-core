@@ -4,6 +4,7 @@ using R3;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Events;
+using TMPro;
 
 namespace Ryx.Core.UI
 {
@@ -11,8 +12,29 @@ namespace Ryx.Core.UI
 	public class UIButton : MonoBehaviour
 	{
 		[SerializeField] private UIEffectHandler _handler;
+		[SerializeField] private Image _icon;
+		[SerializeField] private TMP_Text _label;
+
 		public Button Button => _button? _button : _button = GetComponent<Button>();
 		private Button _button;
+
+		public void SetVisuals(Sprite icon, string labelText, Color? color = null)
+		{
+			if (_icon)
+			{
+				_icon.sprite = icon;
+				_icon.enabled = icon;
+				if (color.HasValue) 
+					_icon.color = color.Value;
+			}
+
+			if (_label != null)
+			{
+				_label.text = labelText ?? string.Empty;
+				_label.enabled = !string.IsNullOrEmpty(_label.text);
+			}
+		}
+
 		public Observable<Unit> Click => Observable.FromEvent(a => new UnityAction(a),
 			h => Button.onClick.AddListener(h),
 			h => Button.onClick.RemoveListener(h)

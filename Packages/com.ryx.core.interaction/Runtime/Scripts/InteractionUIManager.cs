@@ -37,7 +37,7 @@ namespace Ryx.Core.Interaction
 	public class InteractionUIManager : MonoBehaviour
 	{
 		[SerializeField] private InteractionConfigDatabase _database;
-		[SerializeField] private UISnappingButton _buttonPrefab;
+		[SerializeField] private UIButton _buttonPrefab;
 		[SerializeField] private Transform _container;
 		[SerializeField] private bool _hideOnClick = true;
 		[SerializeField] private List<NamedAnchor> _fixedAnchors = new();
@@ -63,8 +63,8 @@ namespace Ryx.Core.Interaction
 			SetupAutoMapping();
 		}
 
-		private readonly Dictionary<UnityEngine.Object, UISnappingButton> _activeByOwner = new();
-		private readonly Stack<UISnappingButton> _pool = new();
+		private readonly Dictionary<UnityEngine.Object, UIButton> _activeByOwner = new();
+		private readonly Stack<UIButton> _pool = new();
 		private Dictionary<string, RectTransform> _anchorLookup;
 
 		// Context management
@@ -80,7 +80,7 @@ namespace Ryx.Core.Interaction
 		private Vector3 _defaultSnapperOffset;
 		private bool _initialized;
 		private bool _defaultsCached;
-		private UISnappingButton _idleButton;
+		private UIButton _idleButton;
 
 		private void Awake()
 		{
@@ -89,7 +89,7 @@ namespace Ryx.Core.Interaction
 		}
 
 		// New API with Layout Preset
-		public UISnappingButton ShowButtonFor(UnityEngine.Object owner, InteractionId interactionId, InteractionUILayoutPreset layout, Transform worldTarget, System.Action onClick, bool animate, string textOverride = null, Sprite iconOverride = null, bool hideOnClick = true, bool keepFixedWhenNoInteractions = true)
+		public UIButton ShowButtonFor(UnityEngine.Object owner, InteractionId interactionId, InteractionUILayoutPreset layout, Transform worldTarget, System.Action onClick, bool animate, string textOverride = null, Sprite iconOverride = null, bool hideOnClick = true, bool keepFixedWhenNoInteractions = true)
 		{
 			EnsureInitialized();
 			if (ReferenceEquals(owner, null))
@@ -120,7 +120,7 @@ namespace Ryx.Core.Interaction
 		}
 
 		// Legacy API for backward compatibility
-		public UISnappingButton ShowButtonFor(UnityEngine.Object owner, InteractionId interactionId, Transform target, bool animate)
+		public UIButton ShowButtonFor(UnityEngine.Object owner, InteractionId interactionId, Transform target, bool animate)
 		{
 			EnsureInitialized();
 			if (ReferenceEquals(owner, null))
@@ -170,7 +170,7 @@ namespace Ryx.Core.Interaction
 			);
 		}
 
-		public UISnappingButton ShowButtonFor(UnityEngine.Object owner, InteractionId interactionId, Transform target, System.Action onClick, bool animate, string textOverride = null, Sprite iconOverride = null, bool hideOnClick = true, bool keepFixedWhenNoInteractions = true)
+		public UIButton ShowButtonFor(UnityEngine.Object owner, InteractionId interactionId, Transform target, System.Action onClick, bool animate, string textOverride = null, Sprite iconOverride = null, bool hideOnClick = true, bool keepFixedWhenNoInteractions = true)
 		{
 			return ShowButtonFor(owner, interactionId, layout: null, worldTarget: target, onClick: onClick, animate: animate, textOverride: textOverride, iconOverride: iconOverride, hideOnClick: hideOnClick, keepFixedWhenNoInteractions: keepFixedWhenNoInteractions);
 		}
@@ -442,7 +442,7 @@ namespace Ryx.Core.Interaction
 					_idleButton.Button.interactable = false;
 
 					// Keep current visuals and fixed layout as-is; just ensure it no longer snaps.
-					DisableSnapper(_idleButton);
+					DisableSnapper(_idleButton as UISnappingButton);
 					return;
 				}
 
@@ -457,7 +457,7 @@ namespace Ryx.Core.Interaction
 					_idleButton.Button.interactable = false;
 					_idleButton.SetVisuals(icon: null, labelText: _idleButtonText, color: null);
 
-					DisableSnapper(_idleButton);
+					DisableSnapper(_idleButton as UISnappingButton);
 
 					// Reset transform to defaults first, then apply fixed anchor (if configured).
 					var rect = _idleButton.GetComponent<RectTransform>();
@@ -500,7 +500,7 @@ namespace Ryx.Core.Interaction
 			return info.Layout.LayoutType == InteractionUILayoutType.Fixed;
 		}
 
-		private UISnappingButton GetOrCreate()
+		private UIButton GetOrCreate()
 		{
 			if (_pool.Count > 0)
 			{
@@ -548,16 +548,16 @@ namespace Ryx.Core.Interaction
 					_defaultSizeDelta = prefabRect.sizeDelta;
 				}
 
-				if (_buttonPrefab.snapper)
+				if (_buttonPrefab is UISnappingButton snapper && snapper.snapper)
 				{
-					_defaultSnapperOffset = _buttonPrefab.snapper.Offset;
+					_defaultSnapperOffset = snapper.snapper.Offset;
 				}
 
 				_defaultsCached = true;
 			}
 		}
 
-		private UISnappingButton ShowButtonInternal(
+		private UIButton ShowButtonInternal(
 			UnityEngine.Object owner,
 			InteractionId interactionId,
 			InteractionConfig config,
@@ -583,7 +583,7 @@ namespace Ryx.Core.Interaction
 			return button;
 		}
 
-		private UISnappingButton GetOrCreateForOwner(UnityEngine.Object owner, UISnappingButton reuseIfAvailable = null)
+		private UIButton GetOrCreateForOwner(UnityEngine.Object owner, UIButton reuseIfAvailable = null)
 		{
 			if (!_activeByOwner.TryGetValue(owner, out var button) || !button)
 			{
@@ -593,7 +593,7 @@ namespace Ryx.Core.Interaction
 			return button;
 		}
 
-		private UISnappingButton TakeIdleButtonWithoutCleanup()
+		private UIButton TakeIdleButtonWithoutCleanup()
 		{
 			if (_idleButton == null) return null;
 			var button = _idleButton;
@@ -626,7 +626,7 @@ namespace Ryx.Core.Interaction
 			return true;
 		}
 
-		private void ConfigureButton(UISnappingButton button, InteractionConfig config, InteractionUILayoutPreset layout, Transform worldTarget, string textOverride = null, Sprite iconOverride = null)
+		private void ConfigureButton(UIButton button, InteractionConfig config, InteractionUILayoutPreset layout, Transform worldTarget, string textOverride = null, Sprite iconOverride = null)
 		{
 			button.Button.interactable = true;
 
@@ -640,12 +640,19 @@ namespace Ryx.Core.Interaction
 				switch (layout.LayoutType)
 				{
 					case InteractionUILayoutType.Snapped:
-						ApplySnappedLayout(button, worldTarget, layout.WorldOffset);
+						if (button is UISnappingButton snappingButton)
+						{
+							ApplySnappedLayout(snappingButton, worldTarget, layout.WorldOffset);
+						}
+						else
+						{
+							Debug.LogWarning($"[InteractionUIManager] Cannot apply Snapped layout to button '{button.name}' because it's not a UISnappingButton.");
+						}
 						break;
 
 					case InteractionUILayoutType.Fixed:
 						// Fixed to a predefined anchor
-						DisableSnapper(button);
+						DisableSnapper(button as UISnappingButton);
 
 						if (TryGetFixedAnchor(layout.FixedAnchorID, out var anchor))
 						{
@@ -669,7 +676,10 @@ namespace Ryx.Core.Interaction
 			else
 			{
 				// Fallback: use world target if no layout.
-				ApplySnappedLayout(button, worldTarget, _defaultSnapperOffset);
+				if (button is UISnappingButton snappingButtonFallback)
+				{
+					ApplySnappedLayout(snappingButtonFallback, worldTarget, _defaultSnapperOffset);
+				}
 			}
 
 			// Clear previous click handlers - new handler will be set up after Show completes
@@ -701,13 +711,15 @@ namespace Ryx.Core.Interaction
 
 		private void DisableSnapper(UISnappingButton button)
 		{
-			if (!button.snapper) return;
-			button.snapper.Target = null;
-			button.snapper.Offset = _defaultSnapperOffset;
-			button.snapper.enabled = false;
+			if (button && button.snapper)
+			{
+				button.snapper.Target = null;
+				button.snapper.Offset = _defaultSnapperOffset;
+				button.snapper.enabled = false;
+			}
 		}
 
-		private void SetupClickHandlerIfCurrent(UnityEngine.Object owner, UISnappingButton button, System.Action onClick, bool animateHide, bool hideOnClick)
+		private void SetupClickHandlerIfCurrent(UnityEngine.Object owner, UIButton button, System.Action onClick, bool animateHide, bool hideOnClick)
 		{
 			if (ReferenceEquals(owner, null) || !button) return;
 			if (!_activeByOwner.TryGetValue(owner, out var current) || current != button) return;
@@ -715,7 +727,7 @@ namespace Ryx.Core.Interaction
 			SetupClickHandler(owner, button, onClick, animateHide, hideOnClick);
 		}
 
-		private void SetupClickHandler(UnityEngine.Object owner, UISnappingButton button, System.Action onClick, bool animateHide, bool hideOnClick)
+		private void SetupClickHandler(UnityEngine.Object owner, UIButton button, System.Action onClick, bool animateHide, bool hideOnClick)
 		{
 			button.Button.onClick.AddListener(() =>
 			{
@@ -752,10 +764,11 @@ namespace Ryx.Core.Interaction
 			return false;
 		}
 
-		private void CleanupButton(UISnappingButton button)
+		private void CleanupButton(UIButton button)
 		{
 			button.Button.onClick.RemoveAllListeners();
-			DisableSnapper(button);
+			if (button is UISnappingButton snappingButton) 
+				DisableSnapper(snappingButton);
 
 			// Reset RectTransform to default values to prevent offset issues when reused
 			var buttonRect = button.GetComponent<RectTransform>();
@@ -802,7 +815,7 @@ namespace Ryx.Core.Interaction
 			_idleButton.Button.interactable = false;
 			_idleButton.SetVisuals(icon: null, labelText: _idleButtonText, color: null);
 
-			DisableSnapper(_idleButton);
+			DisableSnapper(_idleButton as UISnappingButton);
 			if (_idleUseFixedAnchor && TryGetFixedAnchor(_idleFixedAnchorId, out var anchor))
 			{
 				var buttonRect = _idleButton.GetComponent<RectTransform>();

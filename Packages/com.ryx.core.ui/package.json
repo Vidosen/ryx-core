@@ -1,7 +1,7 @@
 {
   "name": "com.ryx.core.ui",
   "displayName": "Ryx Core UI",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "unity": "6000.0",
   "description": "Shared UI utilities: UIButton, UISnapper, UISnappingButton, UIService.",
   "dependencies": {
