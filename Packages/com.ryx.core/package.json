@@ -1,7 +1,7 @@
 {
   "name": "com.ryx.core",
   "displayName": "Ryx Core",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "unity": "6000.0",
   "description": "Base package for Ryx Core with package management utilities.",
   "dependencies": {

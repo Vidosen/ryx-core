@@ -28,6 +28,8 @@ namespace Ryx.Core.Editor
         private bool _isApplyingVersion;
         private string _operationMessage;
         private MessageType _operationMessageType = MessageType.None;
+        private string _pendingPackageUrl;
+        private bool _startAddAfterRepaint;
 
         private const string PendingPackageNameKey = "Ryx.PackageManager.PendingPackageName";
         private const string PendingPackageVersionKey = "Ryx.PackageManager.PendingPackageVersion";
@@ -65,6 +67,13 @@ namespace Ryx.Core.Editor
         {
             EditorApplication.update -= ProgressListRequest;
             EditorApplication.update -= ProgressAddRequest;
+            EditorApplication.delayCall -= StartPendingAddRequest;
+            if (!string.IsNullOrEmpty(_pendingPackageUrl))
+            {
+                _pendingPackageUrl = null;
+                _startAddAfterRepaint = false;
+                ClearPendingOperation();
+            }
         }
 
         private void RefreshPackageList()
@@ -138,6 +147,13 @@ namespace Ryx.Core.Editor
             DrawDetails();
 
             EditorGUILayout.EndHorizontal();
+
+            if (_startAddAfterRepaint && Event.current.type == EventType.Repaint)
+            {
+                _startAddAfterRepaint = false;
+                EditorApplication.delayCall -= StartPendingAddRequest;
+                EditorApplication.delayCall += StartPendingAddRequest;
+            }
         }
 
         private void DrawToolbar()
@@ -352,20 +368,31 @@ namespace Ryx.Core.Editor
             _isApplyingVersion = true;
             _operationMessage = $"Installing {package.displayName} {version}...";
             _operationMessageType = MessageType.Info;
+            _pendingPackageUrl = packageUrl;
+            _startAddAfterRepaint = true;
+            Repaint();
+        }
+
+        private void StartPendingAddRequest()
+        {
+            if (string.IsNullOrEmpty(_pendingPackageUrl)) return;
+
             try
             {
-                _addRequest = Client.Add(packageUrl);
+                _addRequest = Client.Add(_pendingPackageUrl);
+                _pendingPackageUrl = null;
             }
             catch (Exception exception)
             {
+                _pendingPackageUrl = null;
                 Debug.LogException(exception);
                 FailPendingOperation(exception.Message);
+                Repaint();
                 return;
             }
 
             EditorApplication.update -= ProgressAddRequest;
             EditorApplication.update += ProgressAddRequest;
-            Repaint();
         }
 
         private void ProgressAddRequest()
