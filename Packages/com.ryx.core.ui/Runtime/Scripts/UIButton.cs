@@ -9,9 +9,8 @@ using TMPro;
 namespace Ryx.Core.UI
 {
 	[RequireComponent(typeof(Button))]
-	public class UIButton : MonoBehaviour
+	public class UIButton : UIView
 	{
-		[SerializeField] private UIEffectHandler _handler;
 		[SerializeField] private Image _icon;
 		[SerializeField] private TMP_Text _label;
 
@@ -40,28 +39,6 @@ namespace Ryx.Core.UI
 			h => Button.onClick.RemoveListener(h)
 		);
 
-		public async UniTask Show(bool animate)
-		{
-			gameObject.SetActive(true);
-			if (_handler.HasAny(UIEffectEvent.Show) && animate)
-				await _handler.Play(UIEffectEvent.Show);
-			else
-				_handler.SetInstant(UIEffectEvent.Show);
-
-			Debug.Log($"{name} has shown", gameObject);
-		}
-
-		public async UniTask Hide(bool animate)
-		{
-			if (_handler.HasAny(UIEffectEvent.Hide) && animate)
-				await _handler.Play(UIEffectEvent.Hide);
-			else
-				_handler.SetInstant(UIEffectEvent.Hide);
-
-			gameObject.SetActive(false);
-			Debug.Log($"{name} is hidden", gameObject);
-		}
-
 		public async UniTask Enable(bool animate)
 		{
 			if (_handler.HasAny(UIEffectEvent.Enable) && animate)
@@ -79,4 +56,3 @@ namespace Ryx.Core.UI
 		}
 	}
 }
-

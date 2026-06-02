@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Localization;
+using Ryx.Core.UI;
 
 namespace Ryx.Core.Interaction
 {
@@ -14,7 +15,7 @@ namespace Ryx.Core.Interaction
 
         [Header("UI Context")]
         [Tooltip("Contexts where this button is visible. Empty = visible in default context only.")]
-        [SerializeField] private InteractionUIContext[] _validContexts;
+        [SerializeField] private UIContext[] _validContexts;
         [Tooltip("Global buttons are visible in ANY context (e.g., system/pause buttons).")]
         [SerializeField] private bool _isGlobalButton;
 
@@ -27,7 +28,7 @@ namespace Ryx.Core.Interaction
         /// <summary>
         /// Contexts where this button is visible. Empty array means default context only.
         /// </summary>
-        public InteractionUIContext[] ValidContexts => _validContexts ?? System.Array.Empty<InteractionUIContext>();
+        public UIContext[] ValidContexts => _validContexts ?? System.Array.Empty<UIContext>();
 
         /// <summary>
         /// Global buttons are visible in any context.
@@ -35,7 +36,6 @@ namespace Ryx.Core.Interaction
         public bool IsGlobalButton => _isGlobalButton;
     }
 }
-
 
 
 

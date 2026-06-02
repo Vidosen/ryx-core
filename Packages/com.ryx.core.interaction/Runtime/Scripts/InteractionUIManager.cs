@@ -17,6 +17,13 @@ namespace Ryx.Core.Interaction
 		public RectTransform anchor;
 	}
 
+	[Serializable]
+	public struct InteractionContextMapping
+	{
+		public InteractionType mode;
+		public UIContext context;
+	}
+
 	/// <summary>
 	/// Stores all information needed to restore a button after context changes.
 	/// </summary>
@@ -49,28 +56,38 @@ namespace Ryx.Core.Interaction
 		[SerializeField] private string _idleFixedAnchorId = "UI_Anchor_BottomCenter";
 
 		[Header("Context System")]
-		[Tooltip("Default context when no other context is active. If null, all buttons with empty ValidContexts are shown.")]
-		[SerializeField] private InteractionUIContext _defaultContext;
-		[Tooltip("All available contexts for auto-mapping. Used to find context by linked InteractionType.")]
-		[SerializeField] private List<InteractionUIContext> _contextDatabase = new();
+		[Tooltip("Optional automatic mapping from interaction modes to UI contexts.")]
+		[SerializeField] private List<InteractionContextMapping> _contextMappings = new();
 
 		private FPSInteractionService _interactionService;
+		private UIContextService _contextService;
+		private bool _ownsContextService;
 		private IDisposable _modeSubscription;
+		private IDisposable _modeContextActivation;
 
-		public void Initialize(FPSInteractionService interactionService)
+		public UIContextService ContextService => EnsureContextService();
+
+		public void UseContextService(UIContextService contextService)
+		{
+			if (contextService == null) throw new ArgumentNullException(nameof(contextService));
+			SetContextService(contextService);
+		}
+
+		public void Initialize(FPSInteractionService interactionService, UIContextService contextService = null)
 		{
 			_interactionService = interactionService;
+			if (contextService != null)
+				SetContextService(contextService);
 			SetupAutoMapping();
 		}
 
 		private readonly Dictionary<UnityEngine.Object, UIButton> _activeByOwner = new();
 		private readonly Stack<UIButton> _pool = new();
+		private readonly Dictionary<UIButton, IDisposable> _viewRegistrations = new();
 		private Dictionary<string, RectTransform> _anchorLookup;
 
 		// Context management
-		private readonly Stack<InteractionUIContext> _contextStack = new();
 		private readonly Dictionary<UnityEngine.Object, ButtonContextInfo> _buttonRegistry = new();
-		private InteractionUIContext _currentContext;
 
 		// Store default RectTransform values from the prefab for resetting pooled buttons
 		private Vector2 _defaultAnchorMin;
@@ -84,6 +101,7 @@ namespace Ryx.Core.Interaction
 
 		private void Awake()
 		{
+			EnsureContextService();
 			EnsureInitialized();
 			RefreshIdleButtonState();
 		}
@@ -288,76 +306,17 @@ namespace Ryx.Core.Interaction
 		/// <summary>
 		/// The currently active UI context. Null means default context.
 		/// </summary>
-		public InteractionUIContext ActiveContext => _currentContext ?? _defaultContext;
-		public event Action<InteractionUIContext> ContextChanged;
+		public UIContext ActiveContext => EnsureContextService().ActiveContext;
+		public event Action<UIContext> ContextChanged;
 
 		/// <summary>
 		/// Pushes a new context onto the stack. Buttons not valid for this context will be hidden.
 		/// </summary>
 		/// <param name="context">The context to push.</param>
-		public void PushContext(InteractionUIContext context)
+		public IDisposable PushContext(UIContext context)
 		{
 			EnsureInitialized();
-			if (context == null)
-			{
-				Debug.LogWarning("[InteractionUIManager] Cannot push null context.");
-				return;
-			}
-
-			_contextStack.Push(context);
-			_currentContext = context;
-			EvaluateButtonVisibility();
-			RaiseContextChanged();
-		}
-
-		/// <summary>
-		/// Pops the current context from the stack. Restores previous context and re-evaluates button visibility.
-		/// Buttons are restored instantly without animation.
-		/// </summary>
-		public void PopContext()
-		{
-			EnsureInitialized();
-			if (_contextStack.Count == 0)
-			{
-				Debug.LogWarning("[InteractionUIManager] Context stack is empty, nothing to pop.");
-				return;
-			}
-
-			_contextStack.Pop();
-			_currentContext = _contextStack.Count > 0 ? _contextStack.Peek() : null;
-			EvaluateButtonVisibility();
-			RaiseContextChanged();
-		}
-
-		/// <summary>
-		/// Pops contexts until the specified context is removed (inclusive).
-		/// Useful for cleaning up nested contexts when exiting a mode.
-		/// </summary>
-		/// <param name="targetContext">The context to pop to (will also be removed).</param>
-		public void PopToContext(InteractionUIContext targetContext)
-		{
-			EnsureInitialized();
-			while (_contextStack.Count > 0)
-			{
-				var popped = _contextStack.Pop();
-				if (popped == targetContext) break;
-			}
-			_currentContext = _contextStack.Count > 0 ? _contextStack.Peek() : null;
-			EvaluateButtonVisibility();
-			RaiseContextChanged();
-		}
-
-		/// <summary>
-		/// Clears all contexts, returning to default state.
-		/// All registered buttons valid for default context will be restored.
-		/// </summary>
-		public void ClearContexts()
-		{
-			EnsureInitialized();
-			_contextStack.Clear();
-			_currentContext = null;
-			EvaluateButtonVisibility();
-			RaiseContextChanged();
+			return EnsureContextService().PushContext(context);
 		}
 
 		/// <summary>
@@ -372,41 +331,7 @@ namespace Ryx.Core.Interaction
 			// Global buttons are always visible
 			if (config.IsGlobalButton) return true;
 
-			var activeContext = _currentContext ?? _defaultContext;
-
-			// If no context is active (and no default), show buttons with empty ValidContexts
-			if (activeContext == null)
-			{
-				return config.ValidContexts.Length == 0;
-			}
-
-			// Check if button is valid for the active context
-			var validContexts = config.ValidContexts;
-
-			// Empty ValidContexts means "default context only"
-			if (validContexts.Length == 0)
-			{
-				return activeContext == _defaultContext;
-			}
-
-			// Check if active context is in the valid contexts list
-			foreach (var validContext in validContexts)
-			{
-				if (validContext == activeContext) return true;
-			}
-
-			return false;
-		}
-
-		/// <summary>
-		/// Checks if a specific context is currently active (either as current or in the stack).
-		/// </summary>
-		/// <param name="context">The context to check.</param>
-		/// <returns>True if the context is in the stack.</returns>
-		public bool IsContextActive(InteractionUIContext context)
-		{
-			if (context == null) return false;
-			return _contextStack.Contains(context);
+			return EnsureContextService().IsVisible(config.ValidContexts, config.IsGlobalButton);
 		}
 
 		#endregion
@@ -573,6 +498,7 @@ namespace Ryx.Core.Interaction
 			var button = GetOrCreateForOwner(owner, reusedIdleButton);
 			ConfigureButton(button, config, layout, worldTarget, textOverride, iconOverride);
 			button.gameObject.name = $"Button_{interactionId}";
+			RegisterView(button, config.ValidContexts, config.IsGlobalButton);
 
 			// Defer click handler setup until after show animation completes to prevent click-through.
 			// Guard against races: if the button is hidden/reassigned during the show animation, don't attach.
@@ -598,6 +524,7 @@ namespace Ryx.Core.Interaction
 			if (_idleButton == null) return null;
 			var button = _idleButton;
 			_idleButton = null;
+			UnregisterView(button);
 			return button;
 		}
 
@@ -766,6 +693,7 @@ namespace Ryx.Core.Interaction
 
 		private void CleanupButton(UIButton button)
 		{
+			UnregisterView(button);
 			button.Button.onClick.RemoveAllListeners();
 			if (button is UISnappingButton snappingButton) 
 				DisableSnapper(snappingButton);
@@ -814,6 +742,7 @@ namespace Ryx.Core.Interaction
 			_idleButton.Button.onClick.RemoveAllListeners();
 			_idleButton.Button.interactable = false;
 			_idleButton.SetVisuals(icon: null, labelText: _idleButtonText, color: null);
+			RegisterView(_idleButton, Array.Empty<UIContext>(), isGlobal: false);
 
 			DisableSnapper(_idleButton as UISnappingButton);
 			if (_idleUseFixedAnchor && TryGetFixedAnchor(_idleFixedAnchorId, out var anchor))
@@ -967,31 +896,24 @@ namespace Ryx.Core.Interaction
 		private void SetupAutoMapping()
 		{
 			if (_interactionService == null) return;
-			if (_contextDatabase == null || _contextDatabase.Count == 0) return;
+			if (_contextMappings == null || _contextMappings.Count == 0) return;
 
 			// Clean up previous subscription if any
 			_modeSubscription?.Dispose();
 
-			InteractionUIContext lastAutoContext = null;
-
 			_modeSubscription = _interactionService.CurrentMode.Subscribe(mode =>
 			{
-				// Pop previous auto-mapped context if any
-				if (lastAutoContext != null && _contextStack.Count > 0 && _contextStack.Peek() == lastAutoContext)
-				{
-					PopContext();
-					lastAutoContext = null;
-				}
+				_modeContextActivation?.Dispose();
+				_modeContextActivation = null;
 
 				// Find context linked to this mode
 				if (mode != InteractionType.None)
 				{
-					foreach (var ctx in _contextDatabase)
+					foreach (var mapping in _contextMappings)
 					{
-						if (ctx != null && ctx.HasLinkedMode && ctx.LinkedMode == mode)
+						if (mapping.context != null && mapping.mode == mode)
 						{
-							PushContext(ctx);
-							lastAutoContext = ctx;
+							_modeContextActivation = PushContext(mapping.context);
 							break;
 						}
 					}
@@ -1002,11 +924,59 @@ namespace Ryx.Core.Interaction
 		private void OnDestroy()
 		{
 			_modeSubscription?.Dispose();
+			_modeContextActivation?.Dispose();
+			foreach (var registration in _viewRegistrations.Values)
+				registration.Dispose();
+			_viewRegistrations.Clear();
+			if (_ownsContextService)
+				_contextService?.Dispose();
 		}
 
-		private void RaiseContextChanged()
+		private UIContextService EnsureContextService()
 		{
-			ContextChanged?.Invoke(ActiveContext);
+			if (_contextService != null) return _contextService;
+			SetContextService(new UIContextService(), ownsService: true);
+			return _contextService;
+		}
+
+		private void SetContextService(UIContextService contextService, bool ownsService = false)
+		{
+			if (_contextService == contextService) return;
+			foreach (var registration in _viewRegistrations.Values)
+				registration.Dispose();
+			_viewRegistrations.Clear();
+			if (_contextService != null)
+				_contextService.ContextChanged -= OnContextChanged;
+			if (_ownsContextService)
+				_contextService?.Dispose();
+
+			_contextService = contextService;
+			_ownsContextService = ownsService;
+			_contextService.ContextChanged += OnContextChanged;
+
+			foreach (var pair in _activeByOwner)
+				if (_buttonRegistry.TryGetValue(pair.Key, out var info))
+					RegisterView(pair.Value, info.Config.ValidContexts, info.Config.IsGlobalButton);
+			if (_idleButton)
+				RegisterView(_idleButton, Array.Empty<UIContext>(), isGlobal: false);
+		}
+
+		private void OnContextChanged(UIContext context)
+		{
+			EvaluateButtonVisibility();
+			ContextChanged?.Invoke(context);
+		}
+
+		private void RegisterView(UIButton button, IReadOnlyList<UIContext> allowedContexts, bool isGlobal)
+		{
+			UnregisterView(button);
+			_viewRegistrations[button] = EnsureContextService().Register(button, allowedContexts, isGlobal);
+		}
+
+		private void UnregisterView(UIButton button)
+		{
+			if (!button || !_viewRegistrations.Remove(button, out var registration)) return;
+			registration.Dispose();
 		}
 
 		#endregion

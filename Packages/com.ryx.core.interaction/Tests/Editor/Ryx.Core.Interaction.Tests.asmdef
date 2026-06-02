@@ -1,7 +1,8 @@
 {
   "name": "Ryx.Core.Interaction.Tests",
   "references": [
-    "Ryx.Core.Interaction"
+    "Ryx.Core.Interaction",
+    "Ryx.Core.UI"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

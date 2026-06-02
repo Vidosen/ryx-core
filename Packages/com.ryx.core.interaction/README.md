@@ -14,7 +14,12 @@ Reusable interaction-mode input, state and UI coordination for Unity projects.
 
 The package does not depend on a DI container. Create one `FPSInteractionService` in the
 application composition root and pass it to consumers. For `InteractionUIManager`, call
-`Initialize(FPSInteractionService)`.
+`Initialize(FPSInteractionService)` for legacy mode mapping and `UseContextService(UIContextService)`
+to share the application UI context stack.
+
+Interaction prompts are registered as dynamic `UIView` instances. Their visibility follows
+`InteractionConfig.ValidContexts`; an empty list means default-only. Configure automatic
+interaction-mode mappings on `InteractionUIManager`.
 
 ## R3 API
 ```csharp

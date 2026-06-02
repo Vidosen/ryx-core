@@ -1,0 +1,13 @@
+{
+  "name": "Ryx.Core.UI.Tests",
+  "references": [
+    "Ryx.Core.UI",
+    "UniTask"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}
