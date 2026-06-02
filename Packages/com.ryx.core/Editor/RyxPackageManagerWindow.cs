@@ -1,38 +1,123 @@
-using UnityEditor;
-using UnityEngine;
-using UnityEditor.PackageManager;
-using UnityEditor.PackageManager.Requests;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System;
+using UnityEditor;
+using UnityEditor.PackageManager;
+using UnityEditor.PackageManager.Requests;
+using UnityEditor.UIElements;
+using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Ryx.Core.Editor
 {
     public class RyxPackageManagerWindow : EditorWindow
     {
+        [Serializable]
+        private class PackageManifestAuthor
+        {
+            public string name;
+        }
+
+        [Serializable]
+        private class PackageManifestData
+        {
+            public string name;
+            public string displayName;
+            public string description;
+            public PackageManifestAuthor author;
+        }
+
+        private sealed class PackageVersionInfo
+        {
+            public string Version;
+            public string GitRef;
+        }
+
+        private sealed class PackageCatalogEntry
+        {
+            public string Name;
+            public string DisplayName;
+            public string Description;
+            public string AuthorName;
+            public List<PackageVersionInfo> AvailableVersions = new List<PackageVersionInfo>();
+            public UnityEditor.PackageManager.PackageInfo InstalledPackage;
+
+            public string EffectiveDisplayName => string.IsNullOrEmpty(DisplayName) ? Name : DisplayName;
+            public string EffectiveDescription => string.IsNullOrEmpty(Description) ? "No description available for this package." : Description;
+            public string EffectiveAuthorName => string.IsNullOrEmpty(AuthorName) ? "Ryx Games" : AuthorName;
+            public bool IsInstalled => InstalledPackage != null;
+            public string InstalledVersion => InstalledPackage?.version;
+            public string LatestVersion => AvailableVersions.Count > 0 ? AvailableVersions[0].Version : null;
+            public bool HasRemoteVersions => AvailableVersions.Count > 0;
+            public bool HasUpdate(Func<string, string, bool> isNewer) => IsInstalled && isNewer(LatestVersion, InstalledVersion);
+        }
+
+        private sealed class PackageListItemElements
+        {
+            public VisualElement Root;
+            public Label Title;
+            public Label PackageId;
+            public Label StatusChip;
+        }
+
+        private sealed class VersionRowElements
+        {
+            public Label VersionLabel;
+            public Button ActionButton;
+        }
+
+        private const string WindowAssetPath = "Packages/com.ryx.core/Editor/UI/RyxPackageManagerWindow.uxml";
+        private const string WindowStylePath = "Packages/com.ryx.core/Editor/UI/RyxPackageManagerWindow.uss";
+        private const string PendingPackageNameKey = "Ryx.PackageManager.PendingPackageName";
+        private const string PendingPackageVersionKey = "Ryx.PackageManager.PendingPackageVersion";
+
+        private const string StatusInstalledClass = "status-chip--installed";
+        private const string StatusNotInstalledClass = "status-chip--not-installed";
+        private const string StatusUpdateClass = "status-chip--update";
+        private const string BannerInfoClass = "details-card--info";
+        private const string BannerWarningClass = "details-card--warning";
+        private const string BannerErrorClass = "details-card--error";
+
         private ListRequest _listRequest;
         private AddRequest _addRequest;
-        private List<UnityEditor.PackageManager.PackageInfo> _ryxPackages = new List<UnityEditor.PackageManager.PackageInfo>();
-        private Dictionary<string, List<string>> _packageTags = new Dictionary<string, List<string>>();
-        private UnityEditor.PackageManager.PackageInfo _selectedPackage;
+        private readonly List<PackageCatalogEntry> _packages = new List<PackageCatalogEntry>();
+        private readonly List<PackageCatalogEntry> _filteredPackages = new List<PackageCatalogEntry>();
+        private PackageCatalogEntry _selectedPackage;
 
-        private Vector2 _sidebarScroll;
-        private Vector2 _detailsScroll;
-        private string _searchText = "";
-        private float _sidebarWidth = 250f;
-        private bool _isResizingSidebar;
-        private Texture2D _selectedTex;
-        private GUIStyle _itemStyle;
-        private GUIStyle _selectedItemStyle;
-        private GUIStyle _updateIndicatorStyle;
+        private bool _isCatalogLoading;
         private bool _isApplyingVersion;
         private string _operationMessage;
         private MessageType _operationMessageType = MessageType.None;
         private string _pendingPackageUrl;
-        private bool _startAddAfterRepaint;
 
-        private const string PendingPackageNameKey = "Ryx.PackageManager.PendingPackageName";
-        private const string PendingPackageVersionKey = "Ryx.PackageManager.PendingPackageVersion";
+        private ListView _packageListView;
+        private VisualElement _catalogLoadingState;
+        private VisualElement _catalogEmptyState;
+        private Label _catalogEmptyTitleLabel;
+        private Label _catalogEmptyBodyLabel;
+        private ToolbarSearchField _searchField;
+        private Button _refreshButton;
+        private Label _catalogCountLabel;
+        private VisualElement _detailsRoot;
+        private VisualElement _emptyState;
+        private VisualElement _headerCard;
+        private Label _headerTitleLabel;
+        private Label _headerPackageIdLabel;
+        private Label _headerStatusChip;
+        private Button _showInExplorerButton;
+        private Label _authorValueLabel;
+        private Label _currentVersionValueLabel;
+        private Label _latestVersionValueLabel;
+        private Label _descriptionValueLabel;
+        private HelpBox _operationBanner;
+        private VisualElement _primaryActionCard;
+        private HelpBox _primaryActionMessage;
+        private Label _primaryActionSummaryLabel;
+        private Button _primaryActionButton;
+        private VisualElement _versionsSection;
+        private ScrollView _versionsList;
+        private VisualElement _dependenciesSection;
+        private ScrollView _dependenciesList;
 
         [MenuItem("Ryx/Package Manager")]
         public static void ShowWindow()
@@ -42,38 +127,201 @@ namespace Ryx.Core.Editor
 
         private void OnEnable()
         {
-            RefreshPackageList();
             RestorePendingOperation();
+            RefreshPackageList();
+            RefreshViewState();
         }
 
-        private void EnsureStyles()
+        private void CreateGUI()
         {
-            if (_itemStyle != null) return;
-
-            _selectedTex = MakeTex(2, 2, new Color(0.24f, 0.37f, 0.58f));
-            _itemStyle = new GUIStyle(EditorStyles.label);
-            _itemStyle.padding = new RectOffset(10, 10, 5, 5);
-
-            _selectedItemStyle = new GUIStyle(_itemStyle);
-            _selectedItemStyle.normal.background = _selectedTex;
-            _selectedItemStyle.normal.textColor = Color.white;
-
-            _updateIndicatorStyle = new GUIStyle(EditorStyles.miniLabel);
-            _updateIndicatorStyle.normal.textColor = new Color(0.3f, 0.8f, 0.3f);
-            _updateIndicatorStyle.alignment = TextAnchor.MiddleRight;
+            BuildVisualTree();
+            WireUi();
+            RefreshListView();
+            RefreshViewState();
         }
 
         private void OnDisable()
         {
             EditorApplication.update -= ProgressListRequest;
             EditorApplication.update -= ProgressAddRequest;
-            EditorApplication.delayCall -= StartPendingAddRequest;
             if (!string.IsNullOrEmpty(_pendingPackageUrl))
             {
                 _pendingPackageUrl = null;
-                _startAddAfterRepaint = false;
                 ClearPendingOperation();
             }
+        }
+
+        private void BuildVisualTree()
+        {
+            rootVisualElement.Clear();
+
+            var tree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(WindowAssetPath);
+            var style = AssetDatabase.LoadAssetAtPath<StyleSheet>(WindowStylePath);
+
+            if (tree == null)
+            {
+                rootVisualElement.Add(new HelpBox($"Missing UI asset: {WindowAssetPath}", HelpBoxMessageType.Error));
+                return;
+            }
+
+            tree.CloneTree(rootVisualElement);
+            if (style != null)
+            {
+                rootVisualElement.styleSheets.Add(style);
+            }
+
+            rootVisualElement.AddToClassList("package-manager");
+        }
+
+        private void WireUi()
+        {
+            _refreshButton = rootVisualElement.Q<Button>("refresh-button");
+            _searchField = rootVisualElement.Q<ToolbarSearchField>("search-field");
+            _catalogCountLabel = rootVisualElement.Q<Label>("catalog-count");
+            _packageListView = rootVisualElement.Q<ListView>("package-list");
+            _catalogLoadingState = rootVisualElement.Q<VisualElement>("catalog-loading-state");
+            _catalogEmptyState = rootVisualElement.Q<VisualElement>("catalog-empty-state");
+            _catalogEmptyTitleLabel = rootVisualElement.Q<Label>("catalog-empty-title");
+            _catalogEmptyBodyLabel = rootVisualElement.Q<Label>("catalog-empty-body");
+            _detailsRoot = rootVisualElement.Q<VisualElement>("details-root");
+            _emptyState = rootVisualElement.Q<VisualElement>("empty-state");
+            _headerCard = rootVisualElement.Q<VisualElement>("header-card");
+            _headerTitleLabel = rootVisualElement.Q<Label>("header-title");
+            _headerPackageIdLabel = rootVisualElement.Q<Label>("header-package-id");
+            _headerStatusChip = rootVisualElement.Q<Label>("header-status-chip");
+            _showInExplorerButton = rootVisualElement.Q<Button>("show-in-explorer-button");
+            _authorValueLabel = rootVisualElement.Q<Label>("author-value");
+            _currentVersionValueLabel = rootVisualElement.Q<Label>("current-version-value");
+            _latestVersionValueLabel = rootVisualElement.Q<Label>("latest-version-value");
+            _descriptionValueLabel = rootVisualElement.Q<Label>("description-value");
+            _operationBanner = rootVisualElement.Q<HelpBox>("operation-banner");
+            _primaryActionCard = rootVisualElement.Q<VisualElement>("primary-action-card");
+            _primaryActionMessage = rootVisualElement.Q<HelpBox>("primary-action-message");
+            _primaryActionSummaryLabel = rootVisualElement.Q<Label>("primary-action-summary");
+            _primaryActionButton = rootVisualElement.Q<Button>("primary-action-button");
+            _versionsSection = rootVisualElement.Q<VisualElement>("versions-section");
+            _versionsList = rootVisualElement.Q<ScrollView>("versions-list");
+            _dependenciesSection = rootVisualElement.Q<VisualElement>("dependencies-section");
+            _dependenciesList = rootVisualElement.Q<ScrollView>("dependencies-list");
+
+            if (_refreshButton != null)
+            {
+                _refreshButton.clicked += RefreshPackageList;
+            }
+
+            if (_searchField != null)
+            {
+                _searchField.RegisterValueChangedCallback(evt =>
+                {
+                    ApplyFilter(evt.newValue);
+                });
+            }
+
+            ConfigurePackageList();
+
+            if (_showInExplorerButton != null)
+            {
+                _showInExplorerButton.clicked += () =>
+                {
+                    if (_selectedPackage != null &&
+                        _selectedPackage.IsInstalled &&
+                        !string.IsNullOrEmpty(_selectedPackage.InstalledPackage.resolvedPath))
+                    {
+                        EditorUtility.RevealInFinder(_selectedPackage.InstalledPackage.resolvedPath);
+                    }
+                };
+            }
+
+            if (_primaryActionButton != null)
+            {
+                _primaryActionButton.clicked += OnPrimaryActionClicked;
+            }
+        }
+
+        private void ConfigurePackageList()
+        {
+            if (_packageListView == null) return;
+
+            _packageListView.itemsSource = _filteredPackages;
+            _packageListView.selectionType = SelectionType.Single;
+            _packageListView.fixedItemHeight = 58;
+            _packageListView.virtualizationMethod = CollectionVirtualizationMethod.FixedHeight;
+            _packageListView.makeItem = MakePackageListItem;
+            _packageListView.bindItem = BindPackageListItem;
+            _packageListView.selectionChanged += OnPackageSelectionChanged;
+        }
+
+        private VisualElement MakePackageListItem()
+        {
+            var root = new VisualElement();
+            root.AddToClassList("package-list__item");
+
+            var textColumn = new VisualElement();
+            textColumn.AddToClassList("package-list__text");
+
+            var title = new Label();
+            title.AddToClassList("package-list__title");
+
+            var packageId = new Label();
+            packageId.AddToClassList("package-list__id");
+
+            textColumn.Add(title);
+            textColumn.Add(packageId);
+
+            var statusChip = new Label();
+            statusChip.AddToClassList("status-chip");
+            statusChip.AddToClassList("package-list__status");
+
+            root.Add(textColumn);
+            root.Add(statusChip);
+
+            root.userData = new PackageListItemElements
+            {
+                Root = root,
+                Title = title,
+                PackageId = packageId,
+                StatusChip = statusChip
+            };
+
+            return root;
+        }
+
+        private void BindPackageListItem(VisualElement element, int index)
+        {
+            if (!(element.userData is PackageListItemElements row) || index < 0 || index >= _filteredPackages.Count) return;
+
+            PackageCatalogEntry package = _filteredPackages[index];
+            row.Title.text = package.EffectiveDisplayName;
+            row.PackageId.text = package.Name;
+
+            bool hasUpdate = package.HasUpdate(IsNewer);
+            row.StatusChip.text = hasUpdate ? "Update" : package.IsInstalled ? "Installed" : "Not installed";
+
+            SetStatusChipVariant(row.StatusChip, package.IsInstalled, hasUpdate);
+        }
+
+        private void OnPackageSelectionChanged(IEnumerable<object> selectedItems)
+        {
+            _selectedPackage = selectedItems.FirstOrDefault() as PackageCatalogEntry;
+            RefreshViewState();
+        }
+
+        private void ApplyFilter(string searchText)
+        {
+            _filteredPackages.Clear();
+
+            IEnumerable<PackageCatalogEntry> query = _packages;
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                query = query.Where(package =>
+                    package.EffectiveDisplayName.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    package.Name.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0);
+            }
+
+            _filteredPackages.AddRange(query);
+            RefreshListView();
+            RestoreSelectionAfterRefresh();
+            RefreshViewState();
         }
 
         private void RefreshPackageList()
@@ -81,6 +329,10 @@ namespace Ryx.Core.Editor
             EditorApplication.update -= ProgressListRequest;
             _listRequest = Client.List(true);
             EditorApplication.update += ProgressListRequest;
+
+            _isCatalogLoading = true;
+            SetRefreshEnabled(false);
+            RefreshCatalogPaneState();
         }
 
         private void ProgressListRequest()
@@ -89,267 +341,386 @@ namespace Ryx.Core.Editor
 
             if (_listRequest.Status == StatusCode.Success)
             {
-                _ryxPackages = _listRequest.Result
-                    .Where(p => p.name.StartsWith("com.ryx"))
-                    .OrderBy(p => p.name)
-                    .ToList();
-
-                FetchAllTags();
-
-                if (_selectedPackage != null)
-                {
-                    _selectedPackage = _ryxPackages.FirstOrDefault(p => p.name == _selectedPackage.name);
-                }
-
+                BuildCatalog(_listRequest.Result);
+                ApplyFilter(_searchField?.value);
                 ResolvePendingOperation();
             }
             else
             {
                 Debug.LogError($"Failed to list packages: {_listRequest.Error.message}");
+                SetOperationMessage($"Failed to list packages: {_listRequest.Error.message}", MessageType.Error);
             }
 
+            _isCatalogLoading = false;
             EditorApplication.update -= ProgressListRequest;
-            Repaint();
+            SetRefreshEnabled(true);
+            RefreshViewState();
         }
 
-        private void FetchAllTags()
+        private void BuildCatalog(PackageCollection installedPackages)
         {
-            var allTags = GitUtils.GetAllTags();
-            _packageTags.Clear();
-            foreach (var package in _ryxPackages)
+            string previousSelectionName = _selectedPackage?.Name;
+            var installedByName = installedPackages
+                .Where(package => package.name.StartsWith("com.ryx", StringComparison.Ordinal))
+                .ToDictionary(package => package.name, package => package);
+
+            var catalogByName = new Dictionary<string, PackageCatalogEntry>(StringComparer.Ordinal);
+
+            foreach (var remoteTag in GitUtils.GetRemoteTags())
             {
-                var tags = allTags
-                    .Where(t => t.StartsWith(package.name + "/"))
-                    .Select(t => t.Replace(package.name + "/", ""))
-                    .OrderByDescending(v => TryParseVersion(v))
+                if (!TryParsePackageTag(remoteTag.Name, out var packageName, out var version)) continue;
+
+                if (!catalogByName.TryGetValue(packageName, out var entry))
+                {
+                    entry = new PackageCatalogEntry
+                    {
+                        Name = packageName
+                    };
+                    catalogByName.Add(packageName, entry);
+                }
+
+                entry.AvailableVersions.Add(new PackageVersionInfo
+                {
+                    Version = version,
+                    GitRef = remoteTag.GitRef
+                });
+            }
+
+            foreach (var entry in catalogByName.Values)
+            {
+                entry.AvailableVersions = entry.AvailableVersions
+                    .OrderByDescending(version => TryParseVersion(version.Version))
                     .ToList();
-                _packageTags[package.name] = tags;
+
+                HydrateRemoteMetadata(entry);
+            }
+
+            foreach (var installedPackage in installedByName.Values)
+            {
+                if (!catalogByName.TryGetValue(installedPackage.name, out var entry))
+                {
+                    entry = new PackageCatalogEntry
+                    {
+                        Name = installedPackage.name
+                    };
+                    catalogByName.Add(installedPackage.name, entry);
+                }
+
+                entry.InstalledPackage = installedPackage;
+
+                if (string.IsNullOrEmpty(entry.DisplayName))
+                {
+                    entry.DisplayName = installedPackage.displayName;
+                }
+
+                if (string.IsNullOrEmpty(entry.Description))
+                {
+                    entry.Description = installedPackage.description;
+                }
+
+                if (string.IsNullOrEmpty(entry.AuthorName) && installedPackage.author != null)
+                {
+                    entry.AuthorName = installedPackage.author.name;
+                }
+            }
+
+            _packages.Clear();
+            _packages.AddRange(catalogByName.Values
+                .OrderBy(package => package.EffectiveDisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(package => package.Name, StringComparer.OrdinalIgnoreCase));
+
+            _selectedPackage = _packages.FirstOrDefault(package => package.Name == previousSelectionName) ?? _packages.FirstOrDefault();
+        }
+
+        private void HydrateRemoteMetadata(PackageCatalogEntry entry)
+        {
+            if (!entry.HasRemoteVersions) return;
+
+            string manifestJson = GitUtils.GetRemotePackageManifest(entry.Name, entry.AvailableVersions[0].GitRef);
+            if (string.IsNullOrEmpty(manifestJson)) return;
+
+            PackageManifestData manifest = null;
+            try
+            {
+                manifest = JsonUtility.FromJson<PackageManifestData>(manifestJson);
+            }
+            catch (ArgumentException exception)
+            {
+                Debug.LogWarning($"[Ryx] Failed to parse remote manifest for {entry.Name}: {exception.Message}");
+            }
+
+            if (manifest == null) return;
+
+            entry.Name = string.IsNullOrEmpty(manifest.name) ? entry.Name : manifest.name;
+            entry.DisplayName = manifest.displayName;
+            entry.Description = manifest.description;
+            entry.AuthorName = manifest.author != null ? manifest.author.name : null;
+        }
+
+        private void RefreshViewState()
+        {
+            if (_catalogCountLabel != null)
+            {
+                _catalogCountLabel.text = $"{_filteredPackages.Count} packages";
+            }
+
+            RefreshCatalogPaneState();
+
+            if (_detailsRoot == null || _emptyState == null)
+            {
+                return;
+            }
+
+            if (_operationBanner != null)
+            {
+                bool hasOperationMessage = !string.IsNullOrEmpty(_operationMessage);
+                _operationBanner.text = hasOperationMessage ? _operationMessage : string.Empty;
+                _operationBanner.messageType = ToHelpBoxMessageType(_operationMessageType);
+                SetDisplay(_operationBanner, hasOperationMessage);
+            }
+
+            bool hasSelection = _selectedPackage != null && _filteredPackages.Contains(_selectedPackage);
+            SetDisplay(_detailsRoot, hasSelection);
+            SetDisplay(_emptyState, !hasSelection);
+
+            if (!hasSelection)
+            {
+                if (_emptyState != null)
+                {
+                    var title = _emptyState.Q<Label>("empty-state-title");
+                    var body = _emptyState.Q<Label>("empty-state-body");
+                    if (title != null) title.text = _packages.Count == 0 ? "No packages found" : "Select a package";
+                    if (body != null) body.text = _packages.Count == 0
+                        ? "The remote catalog is empty or could not be loaded."
+                        : "Choose a package from the catalog to inspect versions, status, and actions.";
+                }
+
+                return;
+            }
+
+            BindDetails(_selectedPackage);
+        }
+
+        private void RefreshCatalogPaneState()
+        {
+            if (_packageListView == null) return;
+
+            bool hasItems = _filteredPackages.Count > 0;
+            bool hasLoadError = !_isCatalogLoading && _operationMessageType == MessageType.Error && _packages.Count == 0;
+
+            SetDisplay(_packageListView, !_isCatalogLoading && hasItems);
+            SetDisplay(_catalogLoadingState, _isCatalogLoading);
+            SetDisplay(_catalogEmptyState, !_isCatalogLoading && !hasItems);
+
+            if (_catalogEmptyTitleLabel == null || _catalogEmptyBodyLabel == null || _isCatalogLoading) return;
+
+            if (hasLoadError)
+            {
+                _catalogEmptyTitleLabel.text = "Could not load package catalog";
+                _catalogEmptyBodyLabel.text = "The remote catalog request failed. Try Refresh again after checking connectivity and repository access.";
+                return;
+            }
+
+            if (_packages.Count == 0)
+            {
+                _catalogEmptyTitleLabel.text = "No packages found";
+                _catalogEmptyBodyLabel.text = "The remote catalog returned no Ryx packages.";
+                return;
+            }
+
+            _catalogEmptyTitleLabel.text = "No matching packages";
+            _catalogEmptyBodyLabel.text = "Adjust the search query or refresh the catalog to see available packages.";
+        }
+
+        private void BindDetails(PackageCatalogEntry package)
+        {
+            _headerTitleLabel.text = package.EffectiveDisplayName;
+            _headerPackageIdLabel.text = package.Name;
+            _headerStatusChip.text = package.HasUpdate(IsNewer) ? "Update available" : package.IsInstalled ? "Installed" : "Not installed";
+            SetStatusChipVariant(_headerStatusChip, package.IsInstalled, package.HasUpdate(IsNewer));
+
+            _authorValueLabel.text = package.EffectiveAuthorName;
+            _currentVersionValueLabel.text = package.IsInstalled ? package.InstalledVersion : "Not installed";
+            _latestVersionValueLabel.text = string.IsNullOrEmpty(package.LatestVersion) ? "Unavailable" : package.LatestVersion;
+            _descriptionValueLabel.text = package.EffectiveDescription;
+
+            SetDisplay(_showInExplorerButton, package.IsInstalled && !string.IsNullOrEmpty(package.InstalledPackage.resolvedPath));
+
+            BindPrimaryAction(package);
+            BindVersions(package);
+            BindDependencies(package);
+        }
+
+        private void BindPrimaryAction(PackageCatalogEntry package)
+        {
+            _primaryActionButton.SetEnabled(!_isApplyingVersion);
+
+            ClearBannerClasses(_primaryActionCard);
+
+            if (!package.HasRemoteVersions)
+            {
+                _primaryActionSummaryLabel.text = "No installable remote versions were found for this package.";
+                _primaryActionMessage.text = "The package is visible in the catalog, but there is no valid tagged version available for installation.";
+                _primaryActionMessage.messageType = HelpBoxMessageType.Warning;
+                _primaryActionButton.text = "No Action Available";
+                _primaryActionButton.SetEnabled(false);
+                _primaryActionCard.AddToClassList(BannerWarningClass);
+                return;
+            }
+
+            if (package.HasUpdate(IsNewer))
+            {
+                _primaryActionSummaryLabel.text = $"A newer version is available: {package.LatestVersion}.";
+                _primaryActionMessage.text = "The installed version is behind the latest tagged release.";
+                _primaryActionMessage.messageType = HelpBoxMessageType.Info;
+                _primaryActionButton.text = $"Update to {package.LatestVersion}";
+                _primaryActionButton.SetEnabled(!_isApplyingVersion);
+                _primaryActionCard.AddToClassList(BannerInfoClass);
+                return;
+            }
+
+            if (!package.IsInstalled)
+            {
+                _primaryActionSummaryLabel.text = $"This package is not installed. Latest version: {package.LatestVersion}.";
+                _primaryActionMessage.text = "Install the latest tagged release directly from the remote catalog.";
+                _primaryActionMessage.messageType = HelpBoxMessageType.Info;
+                _primaryActionButton.text = $"Install {package.LatestVersion}";
+                _primaryActionButton.SetEnabled(!_isApplyingVersion);
+                _primaryActionCard.AddToClassList(BannerInfoClass);
+                return;
+            }
+
+            _primaryActionSummaryLabel.text = $"This package is installed and up to date at {package.InstalledVersion}.";
+            _primaryActionMessage.text = "You can still switch to a specific tagged version from the versions list below.";
+            _primaryActionMessage.messageType = HelpBoxMessageType.None;
+            _primaryActionButton.text = "Installed";
+            _primaryActionButton.SetEnabled(false);
+        }
+
+        private void BindVersions(PackageCatalogEntry package)
+        {
+            _versionsList.Clear();
+            SetDisplay(_versionsSection, true);
+
+            if (!package.HasRemoteVersions)
+            {
+                var label = new Label("No tagged versions available.");
+                label.AddToClassList("details-list__empty");
+                _versionsList.Add(label);
+                return;
+            }
+
+            foreach (var version in package.AvailableVersions)
+            {
+                VisualElement row = new VisualElement();
+                row.AddToClassList("details-list__row");
+
+                var versionLabel = new Label(version.Version);
+                versionLabel.AddToClassList("details-list__row-label");
+
+                var actionButton = new Button();
+                actionButton.AddToClassList("details-list__row-button");
+
+                if (package.IsInstalled && version.Version == package.InstalledVersion)
+                {
+                    actionButton.text = "Installed";
+                    actionButton.SetEnabled(false);
+                }
+                else
+                {
+                    actionButton.text = package.IsInstalled ? "Switch to" : "Install";
+                    actionButton.SetEnabled(!_isApplyingVersion);
+
+                    string targetVersion = version.Version;
+                    actionButton.clicked += () => ApplyVersion(package, targetVersion);
+                }
+
+                row.Add(versionLabel);
+                row.Add(actionButton);
+                row.userData = new VersionRowElements
+                {
+                    VersionLabel = versionLabel,
+                    ActionButton = actionButton
+                };
+
+                _versionsList.Add(row);
             }
         }
 
-        private Version TryParseVersion(string v)
+        private void BindDependencies(PackageCatalogEntry package)
         {
-            if (string.IsNullOrEmpty(v)) return new Version(0, 0, 0);
-            string cleanVersion = v.Split('-')[0];
+            _dependenciesList.Clear();
+
+            bool showDependencies = package.IsInstalled &&
+                package.InstalledPackage.dependencies != null &&
+                package.InstalledPackage.dependencies.Length > 0;
+
+            SetDisplay(_dependenciesSection, showDependencies);
+            if (!showDependencies) return;
+
+            foreach (var dependency in package.InstalledPackage.dependencies)
+            {
+                var row = new VisualElement();
+                row.AddToClassList("details-list__row");
+
+                var dependencyName = new Label(dependency.name);
+                dependencyName.AddToClassList("details-list__row-label");
+
+                var dependencyVersion = new Label(dependency.version);
+                dependencyVersion.AddToClassList("details-list__row-meta");
+
+                row.Add(dependencyName);
+                row.Add(dependencyVersion);
+                _dependenciesList.Add(row);
+            }
+        }
+
+        private void OnPrimaryActionClicked()
+        {
+            if (_selectedPackage == null || _isApplyingVersion) return;
+
+            if (_selectedPackage.HasUpdate(IsNewer))
+            {
+                ApplyVersion(_selectedPackage, _selectedPackage.LatestVersion);
+                return;
+            }
+
+            if (!_selectedPackage.IsInstalled && _selectedPackage.HasRemoteVersions)
+            {
+                ApplyVersion(_selectedPackage, _selectedPackage.LatestVersion);
+            }
+        }
+
+        private bool TryParsePackageTag(string tagName, out string packageName, out string version)
+        {
+            packageName = null;
+            version = null;
+
+            if (string.IsNullOrEmpty(tagName) || !tagName.StartsWith("com.ryx.", StringComparison.Ordinal)) return false;
+
+            int separatorIndex = tagName.LastIndexOf('/');
+            if (separatorIndex <= 0 || separatorIndex >= tagName.Length - 1) return false;
+
+            packageName = tagName.Substring(0, separatorIndex);
+            version = tagName.Substring(separatorIndex + 1);
+            return IsValidTagVersion(version);
+        }
+
+        private Version TryParseVersion(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return new Version(0, 0, 0);
+
+            string cleanVersion = value.Split('-')[0];
             if (Version.TryParse(cleanVersion, out var result)) return result;
             return new Version(0, 0, 0);
         }
 
-        private void OnGUI()
+        private bool IsValidTagVersion(string value)
         {
-            EnsureStyles();
-            DrawToolbar();
+            if (string.IsNullOrEmpty(value)) return false;
 
-            EditorGUILayout.BeginHorizontal();
-
-            DrawSidebar();
-            DrawResizer();
-            DrawDetails();
-
-            EditorGUILayout.EndHorizontal();
-
-            if (_startAddAfterRepaint && Event.current.type == EventType.Repaint)
-            {
-                _startAddAfterRepaint = false;
-                EditorApplication.delayCall -= StartPendingAddRequest;
-                EditorApplication.delayCall += StartPendingAddRequest;
-            }
-        }
-
-        private void DrawToolbar()
-        {
-            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
-            if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(60)))
-            {
-                RefreshPackageList();
-            }
-            GUILayout.FlexibleSpace();
-            _searchText = EditorGUILayout.TextField(_searchText, EditorStyles.toolbarSearchField, GUILayout.Width(200));
-            if (GUILayout.Button("x", EditorStyles.toolbarButton, GUILayout.Width(20)))
-            {
-                _searchText = "";
-                GUI.FocusControl(null);
-            }
-            EditorGUILayout.EndHorizontal();
-        }
-
-        private void DrawSidebar()
-        {
-            EditorGUILayout.BeginVertical(GUILayout.Width(_sidebarWidth));
-            _sidebarScroll = EditorGUILayout.BeginScrollView(_sidebarScroll);
-
-            var filteredPackages = _ryxPackages
-                .Where(p => string.IsNullOrEmpty(_searchText) || p.displayName.IndexOf(_searchText, StringComparison.OrdinalIgnoreCase) >= 0 || p.name.IndexOf(_searchText, StringComparison.OrdinalIgnoreCase) >= 0)
-                .ToList();
-
-            foreach (var package in filteredPackages)
-            {
-                bool isSelected = _selectedPackage != null && _selectedPackage.name == package.name;
-                var style = isSelected ? _selectedItemStyle : _itemStyle;
-
-                Rect rect = EditorGUILayout.BeginHorizontal(style, GUILayout.Height(30));
-
-                string latest = GetLatestVersion(package.name);
-                bool hasUpdate = IsNewer(latest, package.version);
-
-                EditorGUILayout.LabelField(package.displayName, isSelected ? _selectedItemStyle : _itemStyle);
-
-                if (hasUpdate)
-                {
-                    EditorGUILayout.LabelField("●", _updateIndicatorStyle, GUILayout.Width(15));
-                }
-
-                EditorGUILayout.EndHorizontal();
-
-                if (Event.current.type == EventType.MouseDown && rect.Contains(Event.current.mousePosition))
-                {
-                    _selectedPackage = package;
-                    Repaint();
-                    Event.current.Use();
-                }
-            }
-
-            EditorGUILayout.EndScrollView();
-            EditorGUILayout.EndVertical();
-        }
-
-        private void DrawResizer()
-        {
-            Rect resizerRect = new Rect(_sidebarWidth - 1, 20, 3, position.height - 20);
-            EditorGUIUtility.AddCursorRect(resizerRect, MouseCursor.ResizeHorizontal);
-
-            if (Event.current.type == EventType.MouseDown && resizerRect.Contains(Event.current.mousePosition))
-                _isResizingSidebar = true;
-
-            if (_isResizingSidebar)
-            {
-                _sidebarWidth = Event.current.mousePosition.x;
-                _sidebarWidth = Mathf.Clamp(_sidebarWidth, 100f, position.width - 100f);
-                Repaint();
-            }
-
-            if (Event.current.type == EventType.MouseUp)
-                _isResizingSidebar = false;
-
-            EditorGUI.DrawRect(new Rect(_sidebarWidth, 20, 1, position.height - 20), new Color(0.12f, 0.12f, 0.12f));
-        }
-
-        private void DrawDetails()
-        {
-            EditorGUILayout.BeginVertical();
-            if (!string.IsNullOrEmpty(_operationMessage))
-            {
-                EditorGUILayout.HelpBox(_operationMessage, _operationMessageType);
-                EditorGUILayout.Space(10);
-            }
-
-            if (_selectedPackage == null)
-            {
-                GUILayout.FlexibleSpace();
-                EditorGUILayout.LabelField("Select a package to see details", EditorStyles.centeredGreyMiniLabel);
-                GUILayout.FlexibleSpace();
-            }
-            else
-            {
-                _detailsScroll = EditorGUILayout.BeginScrollView(_detailsScroll);
-
-                // Header
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.BeginVertical();
-                EditorGUILayout.LabelField(_selectedPackage.displayName, EditorStyles.boldLabel);
-                EditorGUILayout.LabelField(_selectedPackage.name, EditorStyles.miniLabel);
-                EditorGUILayout.EndVertical();
-
-                if (GUILayout.Button("Show in Explorer", GUILayout.Width(120)))
-                {
-                    EditorUtility.RevealInFinder(_selectedPackage.resolvedPath);
-                }
-                EditorGUILayout.EndHorizontal();
-
-                EditorGUILayout.Space(5);
-                EditorGUILayout.LabelField($"Author: {(_selectedPackage.author != null ? _selectedPackage.author.name : "Ryx Games")}", EditorStyles.miniLabel);
-                EditorGUILayout.LabelField($"Current Version: {_selectedPackage.version}", EditorStyles.label);
-                EditorGUILayout.EndVertical();
-
-                EditorGUILayout.Space(10);
-
-                // Description
-                EditorGUILayout.LabelField("Description", EditorStyles.boldLabel);
-                string desc = _selectedPackage.description;
-                if (string.IsNullOrEmpty(desc)) desc = "No description available for this package.";
-                EditorGUILayout.HelpBox(desc, MessageType.None);
-
-                EditorGUILayout.Space(10);
-
-                // Update section
-                string latest = GetLatestVersion(_selectedPackage.name);
-                if (IsNewer(latest, _selectedPackage.version))
-                {
-                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                    EditorGUILayout.HelpBox($"A new version ({latest}) is available!", MessageType.Info);
-                    EditorGUI.BeginDisabledGroup(_isApplyingVersion);
-                    if (GUILayout.Button($"Update to {latest}", GUILayout.Height(30)))
-                    {
-                        ApplyVersion(_selectedPackage, latest);
-                    }
-                    EditorGUI.EndDisabledGroup();
-                    EditorGUILayout.EndVertical();
-                }
-
-                EditorGUILayout.Space(10);
-
-                // Versions
-                if (_packageTags.TryGetValue(_selectedPackage.name, out var tags) && tags.Count > 0)
-                {
-                    EditorGUILayout.LabelField("Available Versions (from Git tags)", EditorStyles.boldLabel);
-                    foreach (var tag in tags)
-                    {
-                        EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
-                        EditorGUILayout.LabelField(tag);
-                        if (tag != _selectedPackage.version)
-                        {
-                            EditorGUI.BeginDisabledGroup(_isApplyingVersion);
-                            if (GUILayout.Button("Switch to", GUILayout.Width(80)))
-                            {
-                                ApplyVersion(_selectedPackage, tag);
-                            }
-                            EditorGUI.EndDisabledGroup();
-                        }
-                        else
-                        {
-                            GUI.enabled = false;
-                            GUILayout.Button("Installed", GUILayout.Width(80));
-                            GUI.enabled = true;
-                        }
-                        EditorGUILayout.EndHorizontal();
-                    }
-                }
-
-                EditorGUILayout.Space(10);
-
-                // Dependencies
-                if (_selectedPackage.dependencies != null && _selectedPackage.dependencies.Length > 0)
-                {
-                    EditorGUILayout.LabelField("Dependencies", EditorStyles.boldLabel);
-                    foreach (var dep in _selectedPackage.dependencies)
-                    {
-                        EditorGUILayout.LabelField($"{dep.name} @ {dep.version}", EditorStyles.miniLabel);
-                    }
-                }
-
-                EditorGUILayout.EndScrollView();
-            }
-            EditorGUILayout.EndVertical();
-        }
-
-        private string GetLatestVersion(string packageName)
-        {
-            if (_packageTags.TryGetValue(packageName, out var tags) && tags.Count > 0)
-            {
-                return tags[0]; // Already sorted descending in FetchAllTags
-            }
-            return null;
+            string cleanVersion = value.Split('-')[0];
+            return Version.TryParse(cleanVersion, out _);
         }
 
         private bool IsNewer(string latest, string current)
@@ -358,24 +729,21 @@ namespace Ryx.Core.Editor
             return TryParseVersion(latest) > TryParseVersion(current);
         }
 
-        private void ApplyVersion(UnityEditor.PackageManager.PackageInfo package, string version)
+        private void ApplyVersion(PackageCatalogEntry package, string version)
         {
             if (_isApplyingVersion || (_addRequest != null && !_addRequest.IsCompleted)) return;
 
-            string packageUrl = $"{GitUtils.RepositoryUrl}?path=/Packages/{package.name}#{package.name}/{version}";
-            SessionState.SetString(PendingPackageNameKey, package.name);
+            string packageUrl = $"{GitUtils.RepositoryUrl}?path=/Packages/{package.Name}#{package.Name}/{version}";
+            SessionState.SetString(PendingPackageNameKey, package.Name);
             SessionState.SetString(PendingPackageVersionKey, version);
-            _isApplyingVersion = true;
-            _operationMessage = $"Installing {package.displayName} {version}...";
-            _operationMessageType = MessageType.Info;
-            _pendingPackageUrl = packageUrl;
-            _startAddAfterRepaint = true;
-            Repaint();
-        }
 
-        private void StartPendingAddRequest()
-        {
-            if (string.IsNullOrEmpty(_pendingPackageUrl)) return;
+            _isApplyingVersion = true;
+            _pendingPackageUrl = packageUrl;
+            SetOperationMessage(
+                package.IsInstalled
+                    ? $"Applying {package.EffectiveDisplayName} {version}..."
+                    : $"Installing {package.EffectiveDisplayName} {version}...",
+                MessageType.Info);
 
             try
             {
@@ -387,12 +755,13 @@ namespace Ryx.Core.Editor
                 _pendingPackageUrl = null;
                 Debug.LogException(exception);
                 FailPendingOperation(exception.Message);
-                Repaint();
+                RefreshViewState();
                 return;
             }
 
             EditorApplication.update -= ProgressAddRequest;
             EditorApplication.update += ProgressAddRequest;
+            RefreshViewState();
         }
 
         private void ProgressAddRequest()
@@ -401,7 +770,7 @@ namespace Ryx.Core.Editor
 
             if (_addRequest.Status == StatusCode.Success)
             {
-                Debug.Log($"[Ryx] Updated {_addRequest.Result.name} to {_addRequest.Result.version}");
+                Debug.Log($"[Ryx] Installed {_addRequest.Result.name} {_addRequest.Result.version}");
                 CompletePendingOperation(_addRequest.Result.name, _addRequest.Result.version);
                 RefreshPackageList();
             }
@@ -410,10 +779,10 @@ namespace Ryx.Core.Editor
                 string error = _addRequest.Error.message;
                 Debug.LogError($"[Ryx] Failed to update package: {error}");
                 FailPendingOperation(error);
+                RefreshViewState();
             }
 
             EditorApplication.update -= ProgressAddRequest;
-            Repaint();
         }
 
         private void RestorePendingOperation()
@@ -423,8 +792,7 @@ namespace Ryx.Core.Editor
             if (string.IsNullOrEmpty(packageName) || string.IsNullOrEmpty(version)) return;
 
             _isApplyingVersion = true;
-            _operationMessage = $"Finishing installation of {packageName} {version}...";
-            _operationMessageType = MessageType.Info;
+            SetOperationMessage($"Finishing installation of {packageName} {version}...", MessageType.Info);
         }
 
         private void ResolvePendingOperation()
@@ -435,10 +803,10 @@ namespace Ryx.Core.Editor
             string version = SessionState.GetString(PendingPackageVersionKey, "");
             if (string.IsNullOrEmpty(packageName) || string.IsNullOrEmpty(version)) return;
 
-            var package = _ryxPackages.FirstOrDefault(p => p.name == packageName);
-            if (package != null && package.version == version)
+            var package = _packages.FirstOrDefault(entry => entry.Name == packageName);
+            if (package != null && package.IsInstalled && package.InstalledVersion == version)
             {
-                CompletePendingOperation(package.displayName, version);
+                CompletePendingOperation(package.EffectiveDisplayName, version);
                 return;
             }
 
@@ -448,15 +816,15 @@ namespace Ryx.Core.Editor
         private void CompletePendingOperation(string packageName, string version)
         {
             ClearPendingOperation();
-            _operationMessage = $"Installed {packageName} {version}.";
-            _operationMessageType = MessageType.Info;
+            SetOperationMessage($"Installed {packageName} {version}.", MessageType.Info);
+            RefreshViewState();
         }
 
         private void FailPendingOperation(string error)
         {
             ClearPendingOperation();
-            _operationMessage = $"Package installation failed: {error}";
-            _operationMessageType = MessageType.Error;
+            SetOperationMessage($"Package installation failed: {error}", MessageType.Error);
+            RefreshViewState();
         }
 
         private void ClearPendingOperation()
@@ -466,14 +834,104 @@ namespace Ryx.Core.Editor
             _isApplyingVersion = false;
         }
 
-        private Texture2D MakeTex(int width, int height, Color col)
+        private void SetOperationMessage(string message, MessageType messageType)
         {
-            Color[] pix = new Color[width * height];
-            for (int i = 0; i < pix.Length; ++i) pix[i] = col;
-            Texture2D result = new Texture2D(width, height);
-            result.SetPixels(pix);
-            result.Apply();
-            return result;
+            _operationMessage = message;
+            _operationMessageType = messageType;
+        }
+
+        private void SetRefreshEnabled(bool enabled)
+        {
+            if (_refreshButton != null)
+            {
+                _refreshButton.SetEnabled(enabled && !_isApplyingVersion);
+            }
+        }
+
+        private void RefreshListView()
+        {
+            if (_packageListView == null) return;
+
+            _packageListView.itemsSource = _filteredPackages;
+            _packageListView.Rebuild();
+        }
+
+        private void RestoreSelectionAfterRefresh()
+        {
+            if (_packageListView == null)
+            {
+                RefreshViewState();
+                return;
+            }
+
+            if (_selectedPackage == null)
+            {
+                if (_filteredPackages.Count > 0)
+                {
+                    _selectedPackage = _filteredPackages[0];
+                }
+                else
+                {
+                    _packageListView.ClearSelection();
+                    return;
+                }
+            }
+
+            int selectedIndex = _filteredPackages.FindIndex(package => package.Name == _selectedPackage.Name);
+            if (selectedIndex < 0)
+            {
+                _selectedPackage = _filteredPackages.FirstOrDefault();
+                selectedIndex = _selectedPackage == null ? -1 : 0;
+            }
+
+            if (selectedIndex >= 0)
+            {
+                _packageListView.SetSelection(selectedIndex);
+                _packageListView.ScrollToItem(selectedIndex);
+            }
+            else
+            {
+                _packageListView.ClearSelection();
+            }
+        }
+
+        private void SetDisplay(VisualElement element, bool visible)
+        {
+            if (element == null) return;
+            element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        private void SetStatusChipVariant(Label chip, bool isInstalled, bool hasUpdate)
+        {
+            if (chip == null) return;
+
+            chip.EnableInClassList(StatusInstalledClass, isInstalled && !hasUpdate);
+            chip.EnableInClassList(StatusNotInstalledClass, !isInstalled);
+            chip.EnableInClassList(StatusUpdateClass, hasUpdate);
+        }
+
+        private void ClearBannerClasses(VisualElement element)
+        {
+            if (element == null) return;
+
+            element.RemoveFromClassList(BannerInfoClass);
+            element.RemoveFromClassList(BannerWarningClass);
+            element.RemoveFromClassList(BannerErrorClass);
+        }
+
+        private HelpBoxMessageType ToHelpBoxMessageType(MessageType messageType)
+        {
+            switch (messageType)
+            {
+                case MessageType.Info:
+                    return HelpBoxMessageType.Info;
+                case MessageType.Warning:
+                    return HelpBoxMessageType.Warning;
+                case MessageType.Error:
+                    return HelpBoxMessageType.Error;
+                default:
+                    return HelpBoxMessageType.None;
+            }
         }
     }
 }

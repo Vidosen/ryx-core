@@ -1,0 +1,100 @@
+<UXML xmlns="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
+    <VisualElement name="root" class="package-manager__root">
+        <VisualElement class="package-manager__toolbar">
+            <VisualElement class="package-manager__toolbar-title-block">
+                <Label text="Ryx Package Manager" class="package-manager__title" />
+                <Label text="Remote catalog + local install state" class="package-manager__subtitle" />
+            </VisualElement>
+            <VisualElement class="package-manager__toolbar-actions">
+                <Button name="refresh-button" text="Refresh" class="pm-button pm-button--secondary package-manager__toolbar-button" />
+                <uie:ToolbarSearchField name="search-field" class="package-manager__search" />
+            </VisualElement>
+        </VisualElement>
+
+        <TwoPaneSplitView name="content-split" fixed-pane-index="0" fixed-pane-initial-dimension="320" orientation="Horizontal" class="package-manager__split">
+            <VisualElement name="catalog-pane" class="package-manager__pane package-manager__pane--catalog">
+                <VisualElement class="section-card section-card--catalog">
+                    <VisualElement class="section-card__header">
+                        <Label text="Package Catalog" class="section-card__title" />
+                        <Label name="catalog-count" text="0 packages" class="section-card__meta" />
+                    </VisualElement>
+                    <Label text="Published Ryx packages from the remote catalog." class="section-card__description" />
+                </VisualElement>
+                <VisualElement class="catalog-state-host">
+                    <VisualElement name="catalog-loading-state" class="catalog-state">
+                        <Label text="Loading package catalog..." class="catalog-state__title" />
+                        <Label text="Fetching remote tags and package metadata." class="catalog-state__body" />
+                    </VisualElement>
+                    <VisualElement name="catalog-empty-state" class="catalog-state">
+                        <Label name="catalog-empty-title" text="No packages found" class="catalog-state__title" />
+                        <Label name="catalog-empty-body" text="No packages matched the current catalog state." class="catalog-state__body" />
+                    </VisualElement>
+                    <ListView name="package-list" class="package-list" />
+                </VisualElement>
+            </VisualElement>
+
+            <VisualElement name="details-pane" class="package-manager__pane package-manager__pane--details">
+                <VisualElement name="empty-state" class="details-empty">
+                    <Label name="empty-state-title" text="Select a package" class="details-empty__title" />
+                    <Label name="empty-state-body" text="Choose a package from the catalog to inspect versions, status, and actions." class="details-empty__body" />
+                </VisualElement>
+
+                <ScrollView name="details-root" class="details-scroll">
+                    <VisualElement name="header-card" class="details-card details-card--header">
+                        <VisualElement class="details-card__header">
+                            <VisualElement class="details-card__header-copy">
+                                <Label name="header-title" text="Package" class="details-card__title" />
+                                <Label name="header-package-id" text="com.ryx.core" class="details-card__subtitle" />
+                            </VisualElement>
+                            <Label name="header-status-chip" text="Installed" class="status-chip status-chip--installed" />
+                        </VisualElement>
+                        <Button name="show-in-explorer-button" text="Show in Explorer" class="pm-button pm-button--ghost details-card__ghost-button" />
+                    </VisualElement>
+
+                    <VisualElement class="details-card details-card--summary">
+                        <Label text="Summary" class="details-card__section-title" />
+                        <VisualElement class="summary-grid">
+                            <VisualElement class="summary-grid__item">
+                                <Label text="AUTHOR" class="summary-grid__label" />
+                                <Label name="author-value" text="Ryx Games" class="summary-grid__value" />
+                            </VisualElement>
+                            <VisualElement class="summary-grid__item">
+                                <Label text="CURRENT VERSION" class="summary-grid__label" />
+                                <Label name="current-version-value" text="Not installed" class="summary-grid__value" />
+                            </VisualElement>
+                            <VisualElement class="summary-grid__item">
+                                <Label text="LATEST VERSION" class="summary-grid__label" />
+                                <Label name="latest-version-value" text="Unavailable" class="summary-grid__value" />
+                            </VisualElement>
+                        </VisualElement>
+                    </VisualElement>
+
+                    <HelpBox name="operation-banner" message-type="Info" text="" class="details-banner" />
+
+                    <VisualElement class="details-card">
+                        <Label text="Description" class="details-card__section-title" />
+                        <Label name="description-value" text="No description available for this package." class="details-card__body" />
+                    </VisualElement>
+
+                    <VisualElement name="primary-action-card" class="details-card">
+                        <Label text="Primary Action" class="details-card__section-title" />
+                        <Label name="primary-action-summary" text="" class="details-card__body details-card__body--strong" />
+                        <HelpBox name="primary-action-message" message-type="Info" text="" class="details-card__inline-banner" />
+                        <Button name="primary-action-button" text="Install" class="pm-button pm-button--primary details-card__action-button" />
+                    </VisualElement>
+
+                    <VisualElement name="versions-section" class="details-card">
+                        <Label text="Available Versions" class="details-card__section-title" />
+                        <Label text="Tagged releases from the remote catalog." class="details-card__description" />
+                        <ScrollView name="versions-list" class="details-list" />
+                    </VisualElement>
+
+                    <VisualElement name="dependencies-section" class="details-card">
+                        <Label text="Dependencies" class="details-card__section-title" />
+                        <ScrollView name="dependencies-list" class="details-list" />
+                    </VisualElement>
+                </ScrollView>
+            </VisualElement>
+        </TwoPaneSplitView>
+    </VisualElement>
+</UXML>

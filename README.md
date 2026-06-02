@@ -33,3 +33,42 @@ To ensure symbolic links work correctly on Windows:
 
 `UnityProjects/StarterTemplate` is the neutral starting point for
 new Ryx games.
+
+## Remote Package Catalog
+
+`Ryx Package Manager` discovers available Ryx packages from the remote
+`ryx-core` repository. This flow must work without a local checkout of the
+repository on the consumer machine.
+
+### Tag Contract
+
+- Every published package version must have a git tag in the format
+  `<package-id>/<version>`, for example `com.ryx.core.ui/0.2.0`.
+- `<package-id>` must match the `name` field in
+  `Packages/<package-id>/package.json`.
+- `<version>` must match the package version being published for that package.
+
+### Repository Layout Contract
+
+- Each package must live at `Packages/<package-id>/`.
+- The canonical metadata source for the package catalog is
+  `Packages/<package-id>/package.json`.
+- `displayName`, `description`, `author`, and package dependency metadata are
+  read from that `package.json`.
+
+### Package Manager Behavior
+
+- `Ryx Package Manager` builds the full package catalog from remote git tags.
+- Installed state is resolved locally through Unity Package Manager.
+- Remote package metadata is fetched through a minimal local git cache with
+  shallow fetches of specific refs; a full clone of `ryx-core` is not required.
+- The package manager requires normal git access to the remote repository for
+  both tag discovery and remote manifest reads.
+- A package may appear in the catalog even when it is not installed in the
+  current Unity project.
+- The canonical manifest lookup path remains `Packages/<package-id>/package.json`.
+  The package manager may verify or recover that path through git tree lookup
+  when reading metadata for a fetched ref.
+- If a package has valid release tags but its remote `package.json` cannot be
+  fetched, the window must degrade gracefully and still show the package by its
+  `package-id`.
