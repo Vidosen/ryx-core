@@ -54,6 +54,8 @@ namespace Ryx.Core.Interaction
 		[SerializeField] private string _idleButtonText = "Interact";
 		[SerializeField] private bool _idleUseFixedAnchor = true;
 		[SerializeField] private string _idleFixedAnchorId = "UI_Anchor_BottomCenter";
+		[Tooltip("Contexts in which the idle button is allowed. Empty = visible only when no context is active.")]
+		[SerializeField] private List<UIContext> _idleAllowedContexts = new();
 
 		[Header("Context System")]
 		[Tooltip("Optional automatic mapping from interaction modes to UI contexts.")]
@@ -371,44 +373,9 @@ namespace Ryx.Core.Interaction
 					return;
 				}
 
-				// Generic idle button behavior (optional)
-				if (_showIdleButtonWhenNoInteractions && _activeByOwner.Count == 0)
-				{
-					HideIdleButton();
-					_idleButton = button;
-
-					_idleButton.gameObject.name = "Button_Idle_Interact";
-					_idleButton.Button.onClick.RemoveAllListeners();
-					_idleButton.Button.interactable = false;
-					_idleButton.SetVisuals(icon: null, labelText: _idleButtonText, color: null);
-
-					DisableSnapper(_idleButton as UISnappingButton);
-
-					// Reset transform to defaults first, then apply fixed anchor (if configured).
-					var rect = _idleButton.GetComponent<RectTransform>();
-					if (rect)
-					{
-						rect.anchorMin = _defaultAnchorMin;
-						rect.anchorMax = _defaultAnchorMax;
-						rect.anchoredPosition = _defaultAnchoredPosition;
-						rect.sizeDelta = _defaultSizeDelta;
-						rect.localScale = Vector3.one;
-					}
-
-					if (_idleUseFixedAnchor && rect && TryGetFixedAnchor(_idleFixedAnchorId, out var anchor))
-					{
-						rect.anchorMin = anchor.anchorMin;
-						rect.anchorMax = anchor.anchorMax;
-						rect.anchoredPosition = anchor.anchoredPosition;
-						rect.sizeDelta = anchor.sizeDelta;
-					}
-
-					return;
-				}
-
 				await button.Hide(animate);   // Wait for animation to complete
 				CleanupButton(button);        // Only then return to pool
-				RefreshIdleButtonState();
+				RefreshIdleButtonState();     // Re-creates the idle button (context-governed) if appropriate
 			}
 			catch (Exception e)
 			{
@@ -742,7 +709,7 @@ namespace Ryx.Core.Interaction
 			_idleButton.Button.onClick.RemoveAllListeners();
 			_idleButton.Button.interactable = false;
 			_idleButton.SetVisuals(icon: null, labelText: _idleButtonText, color: null);
-			RegisterView(_idleButton, Array.Empty<UIContext>(), isGlobal: false);
+			RegisterView(_idleButton, _idleAllowedContexts, isGlobal: false);
 
 			DisableSnapper(_idleButton as UISnappingButton);
 			if (_idleUseFixedAnchor && TryGetFixedAnchor(_idleFixedAnchorId, out var anchor))
