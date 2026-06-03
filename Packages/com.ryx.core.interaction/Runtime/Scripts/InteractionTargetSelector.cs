@@ -6,6 +6,19 @@ namespace Ryx.Core.Interaction
 {
 	public static class InteractionTargetSelector
 	{
+		private static bool _warnedEmptyInteractableMask;
+
+		private static void WarnEmptyInteractableMaskOnce()
+		{
+			if (_warnedEmptyInteractableMask) return;
+			_warnedEmptyInteractableMask = true;
+			Debug.LogWarning(
+				"[InteractionTargetSelector] InteractionSelectionProfile.InteractableMask is empty (Nothing). " +
+				"Selection falls back to Physics.DefaultRaycastLayers and will be blocked by the nearest world " +
+				"collider, so interaction prompts may silently fail to appear. Assign a dedicated 'Interactable' " +
+				"layer to the profile's InteractableMask and to interaction-point colliders.");
+		}
+
 		private static class Buffers<TTarget>
 			where TTarget : Component, IInteractionSelectionTarget
 		{
@@ -114,9 +127,18 @@ namespace Ryx.Core.Interaction
 			where TTarget : Component, IInteractionSelectionTarget
 		{
 			usedFallbackMask = false;
+			if (profile.InteractableMask.value == 0)
+			{
+				WarnEmptyInteractableMaskOnce();
+			}
+
 			var hitCount = CollectAndSortRayHits<TTarget>(ray, maxDistance, profile.InteractableMask);
 			if (hitCount > 0) return hitCount;
 
+			// Fallback only runs when InteractableMask yields nothing (usually because the mask is
+			// misconfigured/empty). It scans every default layer, so any world collider that sits in
+			// front of an interaction point will block the selection (see the usedFallbackMask break in
+			// SelectTopTargets). Assigning a dedicated interactable layer keeps us on the primary path.
 			usedFallbackMask = true;
 			return CollectAndSortRayHits<TTarget>(ray, maxDistance, Physics.DefaultRaycastLayers);
 		}

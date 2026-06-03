@@ -1,7 +1,7 @@
 {
   "name": "com.ryx.core.interaction",
   "displayName": "Ryx Core Interaction",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "unity": "6000.0",
   "description": "Shared interaction context and services.",
   "author": {
