@@ -4,13 +4,23 @@ Reusable Unity 6 packages shared by Ryx projects.
 
 ## Packages
 
+- `com.ryx.core`: base package and the `Ryx Package Manager` editor window.
+- `com.ryx.core.app`: boot sequence, scene flow, transitions.
 - `com.ryx.core.fps`: first-person movement and input adapters.
 - `com.ryx.core.hands`: tag-based hand, grab, and tool-grab runtime.
 - `com.ryx.core.interaction`: interaction state and optional UGUI presentation.
-- `com.ryx.core.ui`: reusable UGUI controls and effects.
+- `com.ryx.core.save`: versioned save documents, migrations, pluggable stores.
+- `com.ryx.core.tutorials`: FTUE chapters, steps, triggers, with Localization support.
+- `com.ryx.core.ui`: reusable UGUI controls, context-gated views, and effects.
 
 R3 and UniTask are baseline dependencies. Runtime packages do not depend on a
 specific DI container. Consumers compose them from project-local installers.
+
+### Dependency graph
+
+Only two edges exist between packages: `interaction -> ui`, and nothing depends
+on `core`. Keep it that way — a package that needs another package's types is
+usually a sign the shared part wants extracting instead.
 
 ## Development
 
