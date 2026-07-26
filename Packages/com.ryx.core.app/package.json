@@ -1,0 +1,15 @@
+{
+  "name": "com.ryx.core.app",
+  "displayName": "Ryx Core App",
+  "version": "0.1.0",
+  "unity": "6000.0",
+  "description": "Application lifecycle: ordered async boot sequence, scene flow with transitions, and a small async state machine. Container-agnostic.",
+  "author": {
+    "name": "Ryx Games"
+  },
+  "dependencies": {
+    "com.cysharp.r3": "https://github.com/Cysharp/R3.git?path=src/R3.Unity/Assets/R3.Unity",
+    "com.cysharp.unitask": "2.5.10",
+    "com.unity.ugui": "2.0.0"
+  }
+}

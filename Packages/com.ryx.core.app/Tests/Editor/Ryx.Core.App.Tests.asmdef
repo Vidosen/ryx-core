@@ -1,0 +1,27 @@
+{
+    "name": "Ryx.Core.App.Tests",
+    "rootNamespace": "Ryx.Core.App.Tests",
+    "references": [
+        "Ryx.Core.App",
+        "UniTask",
+        "R3",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "R3.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
