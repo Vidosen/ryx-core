@@ -1,0 +1,13 @@
+{
+  "name": "com.ryx.core.save",
+  "displayName": "Ryx Core Save",
+  "version": "0.1.0",
+  "unity": "6000.0",
+  "description": "Serializer-agnostic persistence: keyed save documents, versioned envelopes, migration pipelines and pluggable stores.",
+  "author": {
+    "name": "Ryx Games"
+  },
+  "dependencies": {
+    "com.cysharp.unitask": "2.5.10"
+  }
+}
