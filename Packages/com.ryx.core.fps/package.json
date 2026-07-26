@@ -1,7 +1,7 @@
 {
   "name": "com.ryx.core.fps",
   "displayName": "Ryx Core FPS",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "unity": "6000.0",
   "description": "Shared first-person movement and camera controls (desktop + touch).",
   "author": {
