@@ -75,6 +75,7 @@ public class TutorialManager : MonoBehaviour
     private TutorialTrigger currentStepTrigger;
     private TutorialTrigger armedChapterStartTrigger;
     private bool isWaitingForChapterStartTrigger;
+    private int pendingChapterStartIndex = -1;
 
     // Competitive race state
     private List<int> _raceChapterIndices;
@@ -281,8 +282,6 @@ public class TutorialManager : MonoBehaviour
             return;
         }
 
-        var savedChapterId = persistProgress ? progress.ChapterId : string.Empty;
-        var savedStepId = persistProgress ? progress.StepId : string.Empty;
         _introCompleted = persistProgress && progress.IsIntroCompleted;
 
         for (int i = 0; i < activeTutorialChapters.Count; i++)
@@ -294,7 +293,7 @@ public class TutorialManager : MonoBehaviour
         if (TryShowIntro(progress.IntroPageIndex))
             return;
 
-        if (TryResumeFromSaved(savedChapterId, savedStepId))
+        if (TryResumeFromSaved(progress))
             return;
 
         currentChapterIndex = -1;
@@ -348,18 +347,25 @@ public class TutorialManager : MonoBehaviour
         SaveProgress();
     }
 
-    private bool TryResumeFromSaved(string savedChapterId, string savedStepId)
+    private bool TryResumeFromSaved(TutorialProgressData progress)
     {
+        if (progress == null)
+            return false;
+
+        var savedChapterId = progress.ChapterId;
+        var savedStepId = progress.StepId;
         if (string.IsNullOrWhiteSpace(savedChapterId))
             return false;
 
         if (!TryFindChapterIndex(savedChapterId, out var savedChapterIndex))
             return false;
 
+        ApplyCompletedChapterIds(progress.CompletedChapterIds, savedChapterId);
+
         // If resuming into a competitive chapter, build the race group around it
         if (activeTutorialChapters[savedChapterIndex].competitiveStart)
         {
-            var raceGroup = CollectRaceGroupAround(savedChapterIndex);
+            var raceGroup = CollectRaceBlockAround(savedChapterIndex);
 
             // Mark all chapters before the race block as completed
             int blockStart = raceGroup[0];
@@ -370,12 +376,12 @@ public class TutorialManager : MonoBehaviour
             _raceChapterIndices = raceGroup;
 
             currentChapterIndex = savedChapterIndex;
-            activeTutorialChapters[savedChapterIndex].currentStepIndex = -1;
+            PrepareChapterResume(activeTutorialChapters[savedChapterIndex], savedStepId);
 
             if (tutorialPanel)
                 tutorialPanel.SetActive(true);
 
-            // Start directly — the trigger already fired before save
+            // Start directly — the chapter trigger already fired before this step was saved.
             NextStep();
             return true;
         }
@@ -383,14 +389,70 @@ public class TutorialManager : MonoBehaviour
         for (int i = 0; i < savedChapterIndex; i++)
             MarkChapterCompleted(activeTutorialChapters[i]);
 
-        currentChapterIndex = savedChapterIndex;
-        activeTutorialChapters[savedChapterIndex].currentStepIndex = -1;
+        var savedStepFound = PrepareChapterResume(activeTutorialChapters[savedChapterIndex], savedStepId);
 
         if (tutorialPanel)
             tutorialPanel.SetActive(true);
 
-        StartCurrentChapter(activeTutorialChapters[savedChapterIndex]);
+        if (savedStepFound)
+        {
+            currentChapterIndex = savedChapterIndex;
+            NextStep();
+        }
+        else
+        {
+            StartCurrentChapter(savedChapterIndex, activeTutorialChapters[savedChapterIndex]);
+        }
+
         return true;
+    }
+
+    private void ApplyCompletedChapterIds(IReadOnlyCollection<string> completedChapterIds, string currentChapterId)
+    {
+        if (completedChapterIds == null)
+            return;
+
+        foreach (var completedChapterId in completedChapterIds)
+        {
+            if (string.IsNullOrWhiteSpace(completedChapterId) || string.Equals(completedChapterId, currentChapterId))
+                continue;
+
+            if (TryFindChapterIndex(completedChapterId, out var completedChapterIndex))
+                MarkChapterCompleted(activeTutorialChapters[completedChapterIndex]);
+        }
+    }
+
+    private static bool PrepareChapterResume(TutorialChapter chapter, string savedStepId)
+    {
+        if (!TryFindStepIndex(chapter, savedStepId, out var savedStepIndex))
+        {
+            chapter.currentStepIndex = -1;
+            return false;
+        }
+
+        for (int i = 0; i < savedStepIndex; i++)
+            chapter.steps[i].isCompleted = true;
+
+        chapter.currentStepIndex = savedStepIndex - 1;
+        return true;
+    }
+
+    private static bool TryFindStepIndex(TutorialChapter chapter, string stepId, out int stepIndex)
+    {
+        stepIndex = -1;
+        if (chapter?.steps == null || string.IsNullOrWhiteSpace(stepId))
+            return false;
+
+        for (int i = 0; i < chapter.steps.Count; i++)
+        {
+            if (string.Equals(chapter.steps[i].stepId, stepId))
+            {
+                stepIndex = i;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void MarkChapterCompleted(TutorialChapter chapter)
@@ -433,7 +495,7 @@ public class TutorialManager : MonoBehaviour
             var remaining = _raceChapterIndices.FindAll(i => !activeTutorialChapters[i].isCompleted);
             if (remaining.Count > 0)
             {
-                StartCompetitiveRace(remaining);
+                StartCompetitiveRace(remaining, false);
                 return;
             }
 
@@ -442,20 +504,20 @@ public class TutorialManager : MonoBehaviour
             _raceChapterIndices = null;
         }
 
-        currentChapterIndex++;
+        var nextChapterIndex = currentChapterIndex + 1;
 
-        if (currentChapterIndex >= activeTutorialChapters.Count)
+        if (nextChapterIndex >= activeTutorialChapters.Count)
         {
             CompleteTutorial();
             return;
         }
 
-        TutorialChapter chapter = activeTutorialChapters[currentChapterIndex];
+        TutorialChapter chapter = activeTutorialChapters[nextChapterIndex];
 
         // Check for competitive race group
         if (chapter.competitiveStart)
         {
-            var raceIndices = CollectRaceGroup(currentChapterIndex);
+            var raceIndices = CollectRaceGroup(nextChapterIndex);
             if (raceIndices.Count > 1)
             {
                 StartCompetitiveRace(raceIndices);
@@ -464,7 +526,7 @@ public class TutorialManager : MonoBehaviour
         }
 
         chapter.currentStepIndex = -1;
-        StartCurrentChapter(chapter);
+        StartCurrentChapter(nextChapterIndex, chapter);
     }
 
     public void NextStep()
@@ -886,18 +948,20 @@ public class TutorialManager : MonoBehaviour
         CompleteCurrentStep();
     }
 
-    private void StartCurrentChapter(TutorialChapter chapter)
+    private void StartCurrentChapter(int chapterIndex, TutorialChapter chapter)
     {
         if (chapter?.startTrigger)
         {
-            BindChapterStartTrigger(chapter.startTrigger);
+            currentChapterIndex = -1;
+            BindChapterStartTrigger(chapter.startTrigger, chapterIndex);
             return;
         }
 
+        currentChapterIndex = chapterIndex;
         NextStep();
     }
 
-    private void BindChapterStartTrigger(TutorialTrigger trigger)
+    private void BindChapterStartTrigger(TutorialTrigger trigger, int chapterIndex)
     {
         UnbindChapterStartTrigger();
 
@@ -906,6 +970,7 @@ public class TutorialManager : MonoBehaviour
 
         armedChapterStartTrigger = trigger;
         isWaitingForChapterStartTrigger = true;
+        pendingChapterStartIndex = chapterIndex;
         armedChapterStartTrigger.Triggered += HandleChapterStartTriggered;
         armedChapterStartTrigger.Arm(this);
     }
@@ -915,6 +980,7 @@ public class TutorialManager : MonoBehaviour
         if (armedChapterStartTrigger == null)
         {
             isWaitingForChapterStartTrigger = false;
+            pendingChapterStartIndex = -1;
             return;
         }
 
@@ -922,11 +988,17 @@ public class TutorialManager : MonoBehaviour
         armedChapterStartTrigger.Disarm();
         armedChapterStartTrigger = null;
         isWaitingForChapterStartTrigger = false;
+        pendingChapterStartIndex = -1;
     }
 
     private void HandleChapterStartTriggered()
     {
+        var chapterIndex = pendingChapterStartIndex;
         UnbindChapterStartTrigger();
+        if (chapterIndex < 0 || chapterIndex >= activeTutorialChapters.Count)
+            return;
+
+        currentChapterIndex = chapterIndex;
         NextStep();
     }
 
@@ -945,7 +1017,7 @@ public class TutorialManager : MonoBehaviour
         return indices;
     }
 
-    private List<int> CollectRaceGroupAround(int memberIndex)
+    private List<int> CollectRaceBlockAround(int memberIndex)
     {
         int start = memberIndex;
         while (start > 0 && activeTutorialChapters[start - 1].competitiveStart)
@@ -957,17 +1029,17 @@ public class TutorialManager : MonoBehaviour
 
         var indices = new List<int>();
         for (int i = start; i <= end; i++)
-        {
-            if (!activeTutorialChapters[i].isCompleted)
-                indices.Add(i);
-        }
+            indices.Add(i);
         return indices;
     }
 
-    private void StartCompetitiveRace(List<int> indices)
+    private void StartCompetitiveRace(List<int> indices, bool updateRaceGroup = true)
     {
         CleanupRace();
-        _raceChapterIndices = indices;
+        if (updateRaceGroup)
+            _raceChapterIndices = indices;
+
+        currentChapterIndex = -1;
         _raceActive = true;
         _raceArming = true;
         _raceWinnerIndex = -1;

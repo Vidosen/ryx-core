@@ -1,6 +1,6 @@
 {
   "name": "com.ryx.core.tutorials",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "displayName": "Ryx Core Tutorials",
   "description": "Core tutorial/FTUE system with Unity Localization support.",
   "unity": "6000.0",
@@ -9,5 +9,8 @@
     "com.unity.inputsystem": "1.18.0",
     "com.unity.localization": "1.5.9",
     "com.unity.ugui": "2.0.0"
+  },
+  "author": {
+    "name": "Ryx Games"
   }
 }
