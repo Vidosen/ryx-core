@@ -1,7 +1,7 @@
 {
   "name": "com.ryx.core.ui",
   "displayName": "Ryx Core UI",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "unity": "6000.0",
   "description": "Shared UI views, contexts, snapping utilities and effects.",
   "dependencies": {

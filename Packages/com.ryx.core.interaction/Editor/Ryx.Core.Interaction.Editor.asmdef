@@ -1,0 +1,30 @@
+{
+    "name": "Ryx.Core.Interaction.Editor",
+    "rootNamespace": "Ryx.Core.Interaction.Editor",
+    "references": [
+        "Ryx.Core.Interaction",
+        "Ryx.Core.UI",
+        "Unity.InputSystem",
+        "Unity.Localization",
+        "Unity.TextMeshPro",
+        "UniTask",
+        "R3"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.ryx.core.ui",
+            "expression": "0.1.0",
+            "define": "RYX_CORE_UI"
+        }
+    ],
+    "noEngineReferences": false
+}

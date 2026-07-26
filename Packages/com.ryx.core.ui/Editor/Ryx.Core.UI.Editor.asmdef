@@ -1,0 +1,22 @@
+{
+    "name": "Ryx.Core.UI.Editor",
+    "rootNamespace": "Ryx.Core.UI.Editor",
+    "references": [
+        "Ryx.Core.UI",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro",
+        "UniTask",
+        "R3"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
