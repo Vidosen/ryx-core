@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+Packages are versioned and tagged independently (`<package-id>/<version>`); the repo-level `v*`
+tags stopped at `v0.3.0` on 2026-06-01 and are not continued. Releases are therefore dated, with
+each package's own version stated inline.
+
+## 2026-07-26
+
+Released: `com.ryx.core.app` 0.1.0, `com.ryx.core.save` 0.1.0, `com.ryx.core.fps` 0.2.0
+(**breaking**), `com.ryx.core.ui` 0.2.1, `com.ryx.core.interaction` 0.4.3,
+`com.ryx.core.tutorials` 0.1.1.
 
 ### Added
 
