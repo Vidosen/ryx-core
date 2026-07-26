@@ -64,7 +64,7 @@
       "dependencies": {
         "com.cysharp.r3": "https://github.com/Cysharp/R3.git?path=src/R3.Unity/Assets/R3.Unity",
         "com.cysharp.unitask": "2.5.10",
-        "com.ryx.core.ui": "0.1.1",
+        "com.ryx.core.ui": "0.2.0",
         "com.unity.inputsystem": "1.14.0",
         "com.unity.localization": "1.5.9",
         "com.unity.ugui": "2.0.0"

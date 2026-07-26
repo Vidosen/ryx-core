@@ -3,16 +3,21 @@
     "com.cysharp.r3": "https://github.com/Cysharp/R3.git?path=src/R3.Unity/Assets/R3.Unity",
     "com.cysharp.unitask": "2.5.10",
     "com.github-glitchenzo.nugetforunity": "https://github.com/GlitchEnzo/NuGetForUnity.git?path=/src/NuGetForUnity",
+    "com.ryx.core": "file:../../../Packages/com.ryx.core",
     "com.ryx.core.fps": "file:../../../Packages/com.ryx.core.fps",
     "com.ryx.core.hands": "file:../../../Packages/com.ryx.core.hands",
     "com.ryx.core.interaction": "file:../../../Packages/com.ryx.core.interaction",
+    "com.ryx.core.tutorials": "file:../../../Packages/com.ryx.core.tutorials",
     "com.ryx.core.ui": "file:../../../Packages/com.ryx.core.ui",
+    "com.unity.ai.navigation": "2.0.8",
     "com.unity.animation.rigging": "1.4.1",
     "com.unity.formats.fbx": "5.1.5",
     "com.unity.inputsystem": "1.19.0",
+    "com.unity.localization": "1.5.9",
     "com.unity.splines": "2.8.4",
     "com.unity.test-framework": "1.6.0",
     "com.unity.ugui": "2.0.0",
+    "com.unity.modules.ai": "1.0.0",
     "com.unity.modules.animation": "1.0.0",
     "com.unity.modules.physics": "1.0.0",
     "com.unity.modules.ui": "1.0.0"
@@ -25,5 +30,11 @@
         "com.cysharp.unitask"
       ]
     }
+  ],
+  "testables": [
+    "com.ryx.core.hands",
+    "com.ryx.core.interaction",
+    "com.ryx.core.tutorials",
+    "com.ryx.core.ui"
   ]
 }
