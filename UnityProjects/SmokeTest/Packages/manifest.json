@@ -24,6 +24,7 @@
     }
   ],
   "testables": [
+    "com.ryx.core",
     "com.ryx.core.hands",
     "com.ryx.core.interaction"
   ]
