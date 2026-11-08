@@ -80,8 +80,11 @@ namespace Ryx.Core.App
 
             try
             {
-                await _bootSequence.RunAsync(_cts.Token);
-                await _sceneFlow.GoToAsync(_firstScene, _cts.Token);
+                var bootToken = _cts.Token;
+                await _bootSequence.RunAsync(bootToken);
+                bootToken.ThrowIfCancellationRequested();
+                // Replacing Boot destroys this object; the handoff belongs to the application.
+                await _sceneFlow.GoToAsync(_firstScene, Application.exitCancellationToken);
             }
             catch (OperationCanceledException)
             {
