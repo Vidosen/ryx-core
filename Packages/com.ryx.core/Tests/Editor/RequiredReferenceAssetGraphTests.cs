@@ -132,6 +132,8 @@ namespace Ryx.Core.Tests
             var first = RequiredReferenceValidator.ValidateAssetGraph(new[] { OuterPrefabPath, InnerPrefabPath });
             var second = RequiredReferenceValidator.ValidateAssetGraph(new[] { InnerPrefabPath, OuterPrefabPath });
 
+            CollectionAssert.AreEquivalent(new[] { InnerPrefabPath, OuterPrefabPath },
+                first.Select(item => item.AssetPath));
             CollectionAssert.AreEqual(first.Select(item => item.ToString()), second.Select(item => item.ToString()));
         }
 
