@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using NUnit.Framework;
 
@@ -14,8 +15,12 @@ namespace Ryx.Core.App.Tests
 
         private sealed class FakeSceneLoader : ISceneLoader
         {
-            public readonly List<string> Calls = new();
+            public readonly List<string> Calls;
             private readonly HashSet<SceneId> _loaded = new();
+
+            public FakeSceneLoader(List<string> calls = null) => Calls = calls ?? new List<string>();
+
+            public UniTaskCompletionSource LoadGate { get; set; }
 
             public UniTask LoadSingleAsync(SceneId scene, IProgress<float> progress = null, CancellationToken cancellationToken = default)
             {
@@ -24,7 +29,7 @@ namespace Ryx.Core.App.Tests
                 progress?.Report(1f);
                 _loaded.Clear();
                 _loaded.Add(scene);
-                return UniTask.CompletedTask;
+                return LoadGate?.Task ?? UniTask.CompletedTask;
             }
 
             public UniTask LoadAdditiveAsync(SceneId scene, IProgress<float> progress = null, CancellationToken cancellationToken = default)
@@ -46,18 +51,20 @@ namespace Ryx.Core.App.Tests
 
         private sealed class RecordingTransition : ISceneTransition
         {
-            public readonly List<string> Calls = new();
+            private readonly List<string> _calls;
             public readonly List<float> Progress = new();
+
+            public RecordingTransition(List<string> calls = null) => _calls = calls ?? new List<string>();
 
             public UniTask CoverAsync(CancellationToken cancellationToken = default)
             {
-                Calls.Add("cover");
+                _calls.Add("cover");
                 return UniTask.CompletedTask;
             }
 
             public UniTask RevealAsync(CancellationToken cancellationToken = default)
             {
-                Calls.Add("reveal");
+                _calls.Add("reveal");
                 return UniTask.CompletedTask;
             }
 
@@ -65,16 +72,21 @@ namespace Ryx.Core.App.Tests
         }
 
         [Test]
-        public void GoToAsync_CoversLoadsThenReveals()
+        public async Task GoToAsync_CoversLoadsThenReveals()
         {
-            var loader = new FakeSceneLoader();
-            var transition = new RecordingTransition();
+            var calls = new List<string>();
+            var gate = new UniTaskCompletionSource();
+            var loader = new FakeSceneLoader(calls) { LoadGate = gate };
+            var transition = new RecordingTransition(calls);
             using var flow = new SceneFlowService(loader, transition, Boot);
 
-            flow.GoToAsync(Station).GetAwaiter().GetResult();
+            var move = flow.GoToAsync(Station).AsTask();
+            var whileLoading = calls.ToArray();
+            gate.TrySetResult();
+            await move;
 
-            CollectionAssert.AreEqual(new[] { "cover", "reveal" }, transition.Calls);
-            CollectionAssert.AreEqual(new[] { "load-single:Station" }, loader.Calls);
+            CollectionAssert.AreEqual(new[] { "cover", "load-single:Station" }, whileLoading);
+            CollectionAssert.AreEqual(new[] { "cover", "load-single:Station", "reveal" }, calls);
         }
 
         [Test]
@@ -100,13 +112,27 @@ namespace Ryx.Core.App.Tests
             CollectionAssert.AreEqual(new[] { 0.5f, 1f }, transition.Progress);
         }
 
-        [Test]
-        public void GoToAsync_ResetsTransitionFlagAfterCompletion()
+        [TestCase(false)]
+        [TestCase(true)]
+        public async Task GoToAsync_ResetsTransitionFlagAfterLoading(bool fail)
         {
-            using var flow = new SceneFlowService(new FakeSceneLoader(), null, Boot);
+            var gate = new UniTaskCompletionSource();
+            using var flow = new SceneFlowService(new FakeSceneLoader { LoadGate = gate }, null, Boot);
 
-            flow.GoToAsync(Station).GetAwaiter().GetResult();
+            var move = flow.GoToAsync(Station).AsTask();
+            var transitioning = flow.IsTransitioning.CurrentValue;
+            if (fail)
+            {
+                gate.TrySetException(new InvalidOperationException("load failed"));
+                Assert.ThrowsAsync<InvalidOperationException>(async () => await move);
+            }
+            else
+            {
+                gate.TrySetResult();
+                await move;
+            }
 
+            Assert.IsTrue(transitioning);
             Assert.IsFalse(flow.IsTransitioning.CurrentValue);
         }
 

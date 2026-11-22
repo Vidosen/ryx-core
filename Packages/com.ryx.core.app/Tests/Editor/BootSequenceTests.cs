@@ -105,7 +105,7 @@ namespace Ryx.Core.App.Tests
         {
             using var sequence = new BootSequence(Array.Empty<IBootStep>());
             Assert.DoesNotThrow(() => sequence.RunAsync().GetAwaiter().GetResult());
-            Assert.AreEqual(0, sequence.StepCount);
+            Assert.AreEqual(1f, sequence.Progress.CurrentValue.Normalized);
         }
 
         /// <remarks>
